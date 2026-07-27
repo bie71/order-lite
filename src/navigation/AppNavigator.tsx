@@ -14,6 +14,9 @@ import AddMarketerScreen from '../screens/AddMarketerScreen';
 import ExpeditionsListScreen from '../screens/ExpeditionsListScreen';
 import AddExpeditionScreen from '../screens/AddExpeditionScreen';
 
+import CustomersListScreen from '../screens/CustomersListScreen';
+import AddCustomerScreen from '../screens/AddCustomerScreen';
+
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
 
@@ -41,6 +44,8 @@ function SettingsStack() {
       <Stack.Screen name="SettingsScreen" component={SettingsScreen} />
       <Stack.Screen name="MarketersList" component={MarketersListScreen} />
       <Stack.Screen name="AddMarketer" component={AddMarketerScreen} />
+      <Stack.Screen name="CustomersList" component={CustomersListScreen} />
+      <Stack.Screen name="AddCustomer" component={AddCustomerScreen} />
       <Stack.Screen name="ExpeditionsList" component={ExpeditionsListScreen} />
       <Stack.Screen name="AddExpedition" component={AddExpeditionScreen} />
     </Stack.Navigator>

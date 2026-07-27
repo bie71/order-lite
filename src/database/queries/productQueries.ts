@@ -48,3 +48,10 @@ export const deleteProduct = async (id: number) => {
   const db = await getDatabase();
   await db.runAsync('DELETE FROM products WHERE id = ?', [id]);
 };
+
+export const deleteProductsBulk = async (ids: number[]) => {
+  if (ids.length === 0) return;
+  const db = await getDatabase();
+  const placeholders = ids.map(() => '?').join(',');
+  await db.runAsync(`DELETE FROM products WHERE id IN (${placeholders})`, ids);
+};

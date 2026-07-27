@@ -7,6 +7,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
+import * as FileSystem from 'expo-file-system/legacy';
 import { insertProduct, updateProduct } from '../database/queries/productQueries';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
@@ -55,14 +56,29 @@ export default function AddProductScreen({ navigation, route }: Props) {
       });
 
       if (!result.canceled) {
-        // Proses Kompresi Gambar secara Native
+        // 1. Kompres dan Resize Gambar (Max 600px, kualitas 0.5 JPEG untuk hemat ukuran)
         const compressedImage = await ImageManipulator.manipulateAsync(
           result.assets[0].uri,
-          [{ resize: { width: 800 } }], // Resize gambar menjadi max lebar 800px
-          { compress: 0.6, format: ImageManipulator.SaveFormat.JPEG } // Kompres ke 60% kualitas
+          [{ resize: { width: 600 } }],
+          { compress: 0.5, format: ImageManipulator.SaveFormat.JPEG }
         );
+
+        // 2. Simpan gambar ke direktori permanen aplikasi (bukan sekadar cache sementara)
+        const imagesDir = FileSystem.documentDirectory + 'images/';
+        const dirInfo = await FileSystem.getInfoAsync(imagesDir);
+        if (!dirInfo.exists) {
+          await FileSystem.makeDirectoryAsync(imagesDir, { intermediates: true });
+        }
+
+        const fileName = `img_${Date.now()}.jpg`;
+        const permanentUri = imagesDir + fileName;
+
+        await FileSystem.copyAsync({
+          from: compressedImage.uri,
+          to: permanentUri,
+        });
         
-        setFotoPath(compressedImage.uri);
+        setFotoPath(permanentUri);
       }
     } catch (error: any) {
       console.error(error);

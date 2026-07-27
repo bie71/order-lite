@@ -204,6 +204,14 @@ export default function SettingsScreen({ navigation }: { navigation: any }) {
         </TouchableOpacity>
 
         <TouchableOpacity 
+          style={[styles.actionBtn, { backgroundColor: '#023c69' }]} 
+          onPress={() => navigation.navigate('CustomersList')}
+        >
+          <Ionicons name="person-outline" size={20} color="#FFF" />
+          <Text style={styles.actionBtnText}>Kelola Customer</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity 
           style={[styles.actionBtn, { backgroundColor: '#023c69', marginBottom: 0 }]} 
           onPress={() => navigation.navigate('ExpeditionsList')}
         >
@@ -259,17 +267,17 @@ const styles = StyleSheet.create({
 
   overlay: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: 'rgba(255,255,255,0.85)',
+    backgroundColor: 'rgba(255,255,255,0.7)',
     justifyContent: 'center', alignItems: 'center',
     zIndex: 10
   },
-  overlayText: { fontWeight: 'bold', color: '#666' },
+  overlayText: { fontWeight: '700', color: '#023c69', fontSize: 13 },
 
   loadingOverlay: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: 'rgba(255,255,255,0.7)',
+    backgroundColor: 'rgba(255, 255, 255, 0.75)',
     justifyContent: 'center', alignItems: 'center',
     zIndex: 999
   },
-  loadingText: { marginTop: 12, fontSize: 16, fontWeight: 'bold', color: '#4285F4' }
+  loadingText: { marginTop: 12, fontSize: 15, fontWeight: '700', color: '#023c69' }
 });

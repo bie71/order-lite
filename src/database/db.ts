@@ -80,6 +80,28 @@ export const initDatabase = async () => {
       );
     `);
     
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS customers (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nama_customer TEXT NOT NULL,
+        telepon TEXT,
+        alamat TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // Migration for existing database orders table
+    try {
+      await db.execAsync('ALTER TABLE orders ADD COLUMN marketer_nama TEXT;');
+    } catch (e) {
+      // Column might already exist
+    }
+    try {
+      await db.execAsync('ALTER TABLE orders ADD COLUMN customer_nama TEXT;');
+    } catch (e) {
+      // Column might already exist
+    }
+
     console.log("Database OrderLite & Tabel berhasil diinisialisasi.");
   } catch (error) {
     console.error("Gagal menginisialisasi database:", error);

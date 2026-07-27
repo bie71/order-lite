@@ -6,7 +6,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useIsFocused } from '@react-navigation/native';
-import { getExpeditionsPaginated, deleteExpedition, deleteExpeditionsBulk } from '../database/queries/expeditionQueries';
+import { getCustomersPaginated, deleteCustomer, deleteCustomersBulk } from '../database/queries/customerQueries';
 
 type Props = {
   navigation: NativeStackNavigationProp<any>;
@@ -14,8 +14,8 @@ type Props = {
 
 const LIMIT = 15;
 
-export default function ExpeditionsListScreen({ navigation }: Props) {
-  const [expeditions, setExpeditions] = useState<any[]>([]);
+export default function CustomersListScreen({ navigation }: Props) {
+  const [customers, setCustomers] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(true);
@@ -28,21 +28,21 @@ export default function ExpeditionsListScreen({ navigation }: Props) {
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [selectedExpedition, setSelectedExpedition] = useState<any | null>(null);
+  const [selectedCustomer, setSelectedCustomer] = useState<any | null>(null);
 
   const isFocused = useIsFocused();
 
-  const fetchExpeditions = useCallback(async (query: string, currentOffset: number, append: boolean) => {
+  const fetchCustomers = useCallback(async (query: string, currentOffset: number, append: boolean) => {
     try {
-      const data = await getExpeditionsPaginated(query, LIMIT, currentOffset);
+      const data = await getCustomersPaginated(query, LIMIT, currentOffset);
       if (append) {
-        setExpeditions(prev => [...prev, ...data]);
+        setCustomers(prev => [...prev, ...data]);
       } else {
-        setExpeditions(data);
+        setCustomers(data);
       }
       setHasMore(data.length === LIMIT);
     } catch (e) {
-      console.warn("Gagal memuat ekspedisi:", e);
+      console.warn("Gagal memuat customer:", e);
     }
   }, []);
 
@@ -52,16 +52,16 @@ export default function ExpeditionsListScreen({ navigation }: Props) {
       setOffset(0);
       setIsSelectionMode(false);
       setSelectedIds([]);
-      fetchExpeditions(searchQuery, 0, false).finally(() => setIsLoading(false));
+      fetchCustomers(searchQuery, 0, false).finally(() => setIsLoading(false));
     }
-  }, [isFocused, searchQuery, fetchExpeditions]);
+  }, [isFocused, searchQuery, fetchCustomers]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
     setOffset(0);
     setIsSelectionMode(false);
     setSelectedIds([]);
-    await fetchExpeditions(searchQuery, 0, false);
+    await fetchCustomers(searchQuery, 0, false);
     setIsRefreshing(false);
   };
 
@@ -70,7 +70,7 @@ export default function ExpeditionsListScreen({ navigation }: Props) {
     setIsLoadingMore(true);
     const nextOffset = offset + LIMIT;
     setOffset(nextOffset);
-    await fetchExpeditions(searchQuery, nextOffset, true);
+    await fetchCustomers(searchQuery, nextOffset, true);
     setIsLoadingMore(false);
   };
 
@@ -97,16 +97,16 @@ export default function ExpeditionsListScreen({ navigation }: Props) {
     if (isSelectionMode) {
       toggleSelect(item.id);
     } else {
-      setSelectedExpedition(item);
+      setSelectedCustomer(item);
     }
   };
 
   const selectAll = () => {
-    if (selectedIds.length === expeditions.length) {
+    if (selectedIds.length === customers.length) {
       setSelectedIds([]);
       setIsSelectionMode(false);
     } else {
-      setSelectedIds(expeditions.map(e => e.id));
+      setSelectedIds(customers.map(c => c.id));
     }
   };
 
@@ -114,7 +114,7 @@ export default function ExpeditionsListScreen({ navigation }: Props) {
     if (selectedIds.length === 0) return;
     Alert.alert(
       "Konfirmasi Hapus Beberapa",
-      `Apakah Anda yakin ingin menghapus ${selectedIds.length} ekspedisi terpilih?\nTindakan ini tidak dapat dibatalkan.`,
+      `Apakah Anda yakin ingin menghapus ${selectedIds.length} customer terpilih?\nTindakan ini tidak dapat dibatalkan.`,
       [
         { text: "Batal", style: "cancel" },
         {
@@ -122,14 +122,14 @@ export default function ExpeditionsListScreen({ navigation }: Props) {
           style: "destructive",
           onPress: async () => {
             try {
-              await deleteExpeditionsBulk(selectedIds);
+              await deleteCustomersBulk(selectedIds);
               setIsSelectionMode(false);
               setSelectedIds([]);
-              Alert.alert("Sukses", "Ekspedisi terpilih berhasil dihapus.");
+              Alert.alert("Sukses", "Customer terpilih berhasil dihapus.");
               handleRefresh();
             } catch (err: any) {
               console.error(err);
-              Alert.alert("Error", `Gagal menghapus ekspedisi: ${err.message || err}`);
+              Alert.alert("Error", `Gagal menghapus customer: ${err.message || err}`);
             }
           }
         }
@@ -137,10 +137,10 @@ export default function ExpeditionsListScreen({ navigation }: Props) {
     );
   };
 
-  const handleDeleteExpedition = (id: number, name: string) => {
+  const handleDeleteCustomer = (id: number, name: string) => {
     Alert.alert(
       "Konfirmasi Hapus",
-      `Apakah Anda yakin ingin menghapus ekspedisi "${name}"?\nTindakan ini tidak dapat dibatalkan.`,
+      `Apakah Anda yakin ingin menghapus customer "${name}"?\nTindakan ini tidak dapat dibatalkan.`,
       [
         { text: "Batal", style: "cancel" },
         { 
@@ -148,13 +148,13 @@ export default function ExpeditionsListScreen({ navigation }: Props) {
           style: "destructive", 
           onPress: async () => {
             try {
-              await deleteExpedition(id);
-              setSelectedExpedition(null);
-              Alert.alert("Sukses", "Ekspedisi berhasil dihapus.");
+              await deleteCustomer(id);
+              setSelectedCustomer(null);
+              Alert.alert("Sukses", "Customer berhasil dihapus.");
               handleRefresh();
             } catch (err: any) {
               console.error(err);
-              Alert.alert("Error", `Gagal menghapus ekspedisi: ${err.message || err}`);
+              Alert.alert("Error", `Gagal menghapus customer: ${err.message || err}`);
             }
           }
         }
@@ -175,7 +175,7 @@ export default function ExpeditionsListScreen({ navigation }: Props) {
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <TouchableOpacity onPress={selectAll} style={styles.headerTextBtn}>
                 <Text style={styles.headerTextBtnText}>
-                  {selectedIds.length === expeditions.length ? "Batal Semua" : "Pilih Semua"}
+                  {selectedIds.length === customers.length ? "Batal Semua" : "Pilih Semua"}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={handleBulkDelete} style={[styles.headerIconBtn, { marginLeft: 12 }]}>
@@ -189,8 +189,8 @@ export default function ExpeditionsListScreen({ navigation }: Props) {
               <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
                 <Ionicons name="arrow-back" size={24} color="#FFF" />
               </TouchableOpacity>
-              <Ionicons name="bus" size={26} color="#FFF" style={styles.headerIcon} />
-              <Text style={styles.headerTitle}>Daftar Ekspedisi</Text>
+              <Ionicons name="person" size={26} color="#FFF" style={styles.headerIcon} />
+              <Text style={styles.headerTitle}>Daftar Customer</Text>
             </View>
             <Text style={styles.headerSubtitle}>Tekan lama pada item untuk memilih banyak</Text>
 
@@ -198,7 +198,7 @@ export default function ExpeditionsListScreen({ navigation }: Props) {
               <Ionicons name="search-outline" size={18} color="#D2DBE7" style={styles.searchIcon} />
               <TextInput
                 style={styles.searchInput}
-                placeholder="Cari nama atau kode ekspedisi..."
+                placeholder="Cari nama, No. WA, atau alamat..."
                 placeholderTextColor="#BAC6D5"
                 value={searchQuery}
                 onChangeText={(text) => setSearchQuery(text)}
@@ -222,7 +222,7 @@ export default function ExpeditionsListScreen({ navigation }: Props) {
         </View>
       ) : (
         <FlatList
-          data={expeditions}
+          data={customers}
           keyExtractor={(item) => item.id.toString()}
           contentContainerStyle={styles.listContent}
           refreshing={isRefreshing}
@@ -256,12 +256,12 @@ export default function ExpeditionsListScreen({ navigation }: Props) {
                 <View style={{ flex: 1 }}>
                   <View style={styles.cardHeader}>
                     <View style={styles.avatarCircle}>
-                      <Ionicons name="bus-outline" size={20} color="#023c69" />
+                      <Text style={styles.avatarText}>{item.nama_customer.substring(0, 2).toUpperCase()}</Text>
                     </View>
-                    <View style={styles.expeditionInfo}>
-                      <Text style={styles.expeditionName} numberOfLines={1}>{item.nama_ekspedisi}</Text>
-                      <Text style={styles.expeditionCode} numberOfLines={1}>
-                        Kode: {item.kode_ekspedisi || 'Tidak ada kode'}
+                    <View style={styles.customerInfo}>
+                      <Text style={styles.customerName} numberOfLines={1}>{item.nama_customer}</Text>
+                      <Text style={styles.customerPhone} numberOfLines={1}>
+                        {item.telepon || 'No WA/HP tidak tersedia'}
                       </Text>
                     </View>
                     {!isSelectionMode && <Ionicons name="chevron-forward" size={18} color="#BAC6D5" />}
@@ -273,15 +273,15 @@ export default function ExpeditionsListScreen({ navigation }: Props) {
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <View style={styles.emptyIconCircle}>
-                <Ionicons name={searchQuery ? "search-outline" : "bus-outline"} size={48} color="#BAC6D5" />
+                <Ionicons name={searchQuery ? "search-outline" : "person-outline"} size={48} color="#BAC6D5" />
               </View>
               <Text style={styles.emptyTitle}>
-                {searchQuery ? "Tidak Menemukan Ekspedisi" : "Belum Ada Ekspedisi"}
+                {searchQuery ? "Tidak Menemukan Customer" : "Belum Ada Customer"}
               </Text>
               <Text style={styles.emptySubtitle}>
                 {searchQuery 
-                  ? `Tidak ada ekspedisi yang cocok dengan "${searchQuery}".` 
-                  : "Ketuk tombol + di bawah untuk menambahkan ekspedisi baru."}
+                  ? `Tidak ada customer yang cocok dengan "${searchQuery}".` 
+                  : "Ketuk tombol + di bawah untuk menambahkan customer baru."}
               </Text>
             </View>
           }
@@ -292,48 +292,55 @@ export default function ExpeditionsListScreen({ navigation }: Props) {
       <TouchableOpacity
         style={styles.fab}
         activeOpacity={0.85}
-        onPress={() => navigation.navigate('AddExpedition')}
+        onPress={() => navigation.navigate('AddCustomer')}
       >
         <Ionicons name="add" color="#FFF" size={28} />
       </TouchableOpacity>
 
-      {/* DETAIL MODAL (BOTTOM SHEET STYLE) */}
+      {/* DETAIL MODAL */}
       <Modal
-        visible={selectedExpedition !== null}
+        visible={selectedCustomer !== null}
         animationType="slide"
         transparent={true}
-        onRequestClose={() => setSelectedExpedition(null)}
+        onRequestClose={() => setSelectedCustomer(null)}
       >
         <View style={styles.modalOverlay}>
           <TouchableOpacity 
             style={styles.modalBgDismiss} 
             activeOpacity={1} 
-            onPress={() => setSelectedExpedition(null)} 
+            onPress={() => setSelectedCustomer(null)} 
           />
           <View style={styles.modalContent}>
             <View style={styles.dragIndicator} />
 
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Detail Ekspedisi</Text>
-              <TouchableOpacity onPress={() => setSelectedExpedition(null)} style={styles.closeModalBtn}>
+              <Text style={styles.modalTitle}>Detail Customer</Text>
+              <TouchableOpacity onPress={() => setSelectedCustomer(null)} style={styles.closeModalBtn}>
                 <Ionicons name="close" size={22} color="#5E6E82" />
               </TouchableOpacity>
             </View>
 
-            {selectedExpedition && (
+            {selectedCustomer && (
               <ScrollView contentContainerStyle={styles.modalScrollBody} showsVerticalScrollIndicator={false}>
                 
                 <View style={styles.modalSection}>
-                  <Text style={styles.modalSectionLabel}>Informasi Ekspedisi</Text>
+                  <Text style={styles.modalSectionLabel}>Informasi Customer</Text>
                   
                   <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Nama Ekspedisi</Text>
-                    <Text style={styles.detailValue}>{selectedExpedition.nama_ekspedisi}</Text>
+                    <Text style={styles.detailLabel}>Nama Lengkap</Text>
+                    <Text style={styles.detailValue}>{selectedCustomer.nama_customer}</Text>
                   </View>
                   
                   <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Kode Ekspedisi</Text>
-                    <Text style={styles.detailValue}>{selectedExpedition.kode_ekspedisi || '-'}</Text>
+                    <Text style={styles.detailLabel}>No. WA / HP</Text>
+                    <Text style={styles.detailValue}>{selectedCustomer.telepon || '-'}</Text>
+                  </View>
+
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Alamat Pengiriman</Text>
+                    <Text style={[styles.detailValue, { flex: 1, textAlign: 'right', marginLeft: 12 }]}>
+                      {selectedCustomer.alamat || '-'}
+                    </Text>
                   </View>
                 </View>
 
@@ -342,18 +349,18 @@ export default function ExpeditionsListScreen({ navigation }: Props) {
                   <TouchableOpacity 
                     style={[styles.modalActionBtn, styles.modalEditBtn]} 
                     onPress={() => {
-                      const exp = selectedExpedition;
-                      setSelectedExpedition(null);
-                      navigation.navigate('AddExpedition', { expedition: exp });
+                      const cust = selectedCustomer;
+                      setSelectedCustomer(null);
+                      navigation.navigate('AddCustomer', { customer: cust });
                     }}
                   >
                     <Ionicons name="pencil" size={18} color="#FFF" />
-                    <Text style={styles.modalActionText}>Edit Ekspedisi</Text>
+                    <Text style={styles.modalActionText}>Edit Customer</Text>
                   </TouchableOpacity>
                   
                   <TouchableOpacity 
                     style={[styles.modalActionBtn, styles.modalDeleteBtn]} 
-                    onPress={() => handleDeleteExpedition(selectedExpedition.id, selectedExpedition.nama_ekspedisi)}
+                    onPress={() => handleDeleteCustomer(selectedCustomer.id, selectedCustomer.nama_customer)}
                   >
                     <Ionicons name="trash" size={18} color="#FFF" />
                     <Text style={styles.modalActionText}>Hapus</Text>
@@ -513,16 +520,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginRight: 12,
   },
-  expeditionInfo: {
+  avatarText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#023c69',
+  },
+  customerInfo: {
     flex: 1,
   },
-  expeditionName: {
+  customerName: {
     fontSize: 15,
     fontWeight: '700',
     color: '#102A43',
     marginBottom: 2,
   },
-  expeditionCode: {
+  customerPhone: {
     fontSize: 12,
     color: '#6A7B95',
     fontWeight: '500',

@@ -4,14 +4,16 @@ import {
   ScrollView, Image, Alert, KeyboardAvoidingView, Platform,
   ActivityIndicator
 } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
 import { Ionicons } from '@expo/vector-icons';
+import { useIsFocused } from '@react-navigation/native';
 import { getProducts } from '../database/queries/productQueries';
 import { insertOrder, updateOrder } from '../database/queries/orderQueries';
 import { getMarketers } from '../database/queries/marketerQueries';
+import { getCustomers } from '../database/queries/customerQueries';
 import { getExpeditions } from '../database/queries/expeditionQueries';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
+import DropdownPicker from '../components/DropdownPicker';
 
 type Props = {
   navigation: NativeStackNavigationProp<any>;
@@ -21,20 +23,22 @@ type Props = {
 export default function OrderFormScreen({ navigation, route }: Props) {
   const existingOrder = route.params?.order;
   const isEdit = !!existingOrder;
+  const isFocused = useIsFocused();
 
   const [productList, setProductList] = useState<any[]>([]);
   const [marketerList, setMarketerList] = useState<any[]>([]);
+  const [customerList, setCustomerList] = useState<any[]>([]);
   const [expeditionList, setExpeditionList] = useState<any[]>([]);
 
   const [selectedProductId, setSelectedProductId] = useState<number | null>(existingOrder?.produk_id || null);
+  const [selectedMarketerId, setSelectedMarketerId] = useState<string | number | null>('manual');
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | number | null>('manual');
+  const [selectedExpeditionId, setSelectedExpeditionId] = useState<string | number | null>('manual');
 
-  // Picker selections or manual modes
-  const [selectedMarketerId, setSelectedMarketerId] = useState<string>('manual');
-  const [selectedExpeditionId, setSelectedExpeditionId] = useState<string>('manual');
-
-  // Form states
+  // Form text states
   const [gudangNama, setGudangNama] = useState(existingOrder?.gudang_nama || '');
-  const [marketerNama, setMarketerNama] = useState(existingOrder?.marketer_cust_nama || '');
+  const [marketerNama, setMarketerNama] = useState(existingOrder?.marketer_nama || existingOrder?.marketer_cust_nama || '');
+  const [customerNama, setCustomerNama] = useState(existingOrder?.customer_nama || '');
   const [produkNama, setProdukNama] = useState(existingOrder?.produk_nama || '');
   const [hargaProduk, setHargaProduk] = useState(existingOrder?.harga_produk ? existingOrder.harga_produk.toString() : '0');
   const [feeMarketer, setFeeMarketer] = useState(
@@ -56,37 +60,54 @@ export default function OrderFormScreen({ navigation, route }: Props) {
   const [errors, setErrors] = useState<{
     gudang?: string;
     marketer?: string;
+    customer?: string;
     product?: string;
     fee?: string;
     ekspedisi?: string;
     ongkir?: string;
   }>({});
 
-  // Fetch products, marketers, and expeditions from database
+  // Fetch or refresh products, marketers, customers, and expeditions whenever screen gains focus
   useEffect(() => {
+    let isMounted = true;
     async function loadMetadata() {
       try {
-        const [prods, mkts, exps] = await Promise.all([
+        const [prods, mkts, custs, exps] = await Promise.all([
           getProducts(),
           getMarketers(),
+          getCustomers(),
           getExpeditions()
         ]);
+
+        if (!isMounted) return;
+
         setProductList(prods);
         setMarketerList(mkts);
+        setCustomerList(custs);
         setExpeditionList(exps);
 
-        // Pre-select pickers if editing
-        if (isEdit) {
-          const matchedMkt = mkts.find(m => m.nama_marketer === existingOrder.marketer_cust_nama);
+        // If editing and first load, match existing names with lists
+        if (isEdit && isLoadingMetadata) {
+          const matchedMkt = mkts.find(m => m.nama_marketer === existingOrder.marketer_nama || m.nama_marketer === existingOrder.marketer_cust_nama);
           if (matchedMkt) {
-            setSelectedMarketerId(matchedMkt.id.toString());
+            setSelectedMarketerId(matchedMkt.id);
+            setMarketerNama(matchedMkt.nama_marketer);
           } else {
             setSelectedMarketerId('manual');
           }
 
+          const matchedCust = custs.find(c => c.nama_customer === existingOrder.customer_nama);
+          if (matchedCust) {
+            setSelectedCustomerId(matchedCust.id);
+            setCustomerNama(matchedCust.nama_customer);
+          } else {
+            setSelectedCustomerId('manual');
+          }
+
           const matchedExp = exps.find(e => e.nama_ekspedisi === existingOrder.ekspedisi_pengirim);
           if (matchedExp) {
-            setSelectedExpeditionId(matchedExp.id.toString());
+            setSelectedExpeditionId(matchedExp.id);
+            setEkspedisi(matchedExp.nama_ekspedisi);
           } else {
             setSelectedExpeditionId('manual');
           }
@@ -94,57 +115,81 @@ export default function OrderFormScreen({ navigation, route }: Props) {
       } catch (err) {
         console.warn("Gagal mengambil metadata:", err);
       } finally {
-        setIsLoadingMetadata(false);
+        if (isMounted) setIsLoadingMetadata(false);
       }
     }
-    loadMetadata();
-  }, [isEdit, existingOrder]);
 
-  const handleProductSelect = (prodId: number | null) => {
-    setSelectedProductId(prodId);
-    if (errors.product) setErrors(prev => ({ ...prev, product: undefined }));
+    if (isFocused) {
+      loadMetadata();
+    }
 
-    if (prodId === null) {
+    return () => {
+      isMounted = false;
+    };
+  }, [isFocused, isEdit, existingOrder]);
+
+  const handleProductSelect = (item: any) => {
+    if (!item) {
+      setSelectedProductId(null);
       setProdukNama('');
       setHargaProduk('0');
       setPreviewFoto(null);
       return;
     }
 
-    const selected = productList.find(p => p.id === prodId);
-    if (selected) {
-      setProdukNama(selected.nama_produk);
-      setHargaProduk(selected.harga_dasar.toString());
-      setPreviewFoto(selected.foto_path || null);
-    }
+    setSelectedProductId(item.id);
+    setProdukNama(item.label);
+    setHargaProduk(item.harga_dasar.toString());
+    setPreviewFoto(item.foto_path || null);
+    if (errors.product) setErrors(prev => ({ ...prev, product: undefined }));
   };
 
-  const handleMarketerSelect = (val: string) => {
-    setSelectedMarketerId(val);
-    if (errors.marketer) setErrors(prev => ({ ...prev, marketer: undefined }));
+  const handleMarketerSelect = (item: any) => {
+    if (!item) {
+      setSelectedMarketerId('manual');
+      setMarketerNama('');
+      return;
+    }
 
-    if (val === 'manual') {
+    setSelectedMarketerId(item.id);
+    if (item.id === 'manual') {
       setMarketerNama('');
     } else {
-      const selected = marketerList.find(m => m.id.toString() === val);
-      if (selected) {
-        setMarketerNama(selected.nama_marketer);
-      }
+      setMarketerNama(item.label);
     }
+    if (errors.marketer) setErrors(prev => ({ ...prev, marketer: undefined }));
   };
 
-  const handleExpeditionSelect = (val: string) => {
-    setSelectedExpeditionId(val);
-    if (errors.ekspedisi) setErrors(prev => ({ ...prev, ekspedisi: undefined }));
+  const handleCustomerSelect = (item: any) => {
+    if (!item) {
+      setSelectedCustomerId('manual');
+      setCustomerNama('');
+      return;
+    }
 
-    if (val === 'manual') {
+    setSelectedCustomerId(item.id);
+    if (item.id === 'manual') {
+      setCustomerNama('');
+    } else {
+      setCustomerNama(item.label);
+    }
+    if (errors.customer) setErrors(prev => ({ ...prev, customer: undefined }));
+  };
+
+  const handleExpeditionSelect = (item: any) => {
+    if (!item) {
+      setSelectedExpeditionId('manual');
+      setEkspedisi('');
+      return;
+    }
+
+    setSelectedExpeditionId(item.id);
+    if (item.id === 'manual') {
       setEkspedisi('');
     } else {
-      const selected = expeditionList.find(e => e.id.toString() === val);
-      if (selected) {
-        setEkspedisi(selected.nama_ekspedisi);
-      }
+      setEkspedisi(item.label);
     }
+    if (errors.ekspedisi) setErrors(prev => ({ ...prev, ekspedisi: undefined }));
   };
 
   const formatRupiah = (text: string) => {
@@ -186,9 +231,14 @@ export default function OrderFormScreen({ navigation, route }: Props) {
       const feeNum = parseFloat(feeMarketer.replace(/\./g, '')) || 0;
       const ongkirNum = parseFloat(ongkir.replace(/\./g, '')) || 0;
 
+      const mktName = marketerNama.trim();
+      const custName = customerNama.trim();
+
       const orderPayload = {
         gudang_nama: gudangNama.trim(),
-        marketer_cust_nama: marketerNama.trim() || '-',
+        marketer_nama: mktName || null,
+        customer_nama: custName || null,
+        marketer_cust_nama: [mktName, custName].filter(Boolean).join(' - ') || '-',
         produk_id: selectedProductId,
         produk_nama: produkNama,
         produk_foto_path: previewFoto,
@@ -217,11 +267,39 @@ export default function OrderFormScreen({ navigation, route }: Props) {
     }
   };
 
-  // Calculations
+  // Calculations: Fee Marketer MENGURANGI harga barang bagi seller/penjual
   const basePriceNum = parseFloat(hargaProduk) || 0;
   const feeMarketerNum = parseFloat(feeMarketer.replace(/\./g, '')) || 0;
   const ongkirNum = parseFloat(ongkir.replace(/\./g, '')) || 0;
-  const totalHarga = basePriceNum + feeMarketerNum + ongkirNum;
+
+  const totalTagihanCustomer = basePriceNum + ongkirNum;
+  const penerimaanBersihSeller = basePriceNum - feeMarketerNum + ongkirNum;
+
+  const formattedProducts = productList.map(p => ({
+    id: p.id,
+    label: p.nama_produk,
+    subLabel: `Rp ${p.harga_dasar.toLocaleString('id-ID')}`,
+    harga_dasar: p.harga_dasar,
+    foto_path: p.foto_path,
+  }));
+
+  const formattedMarketers = marketerList.map(m => ({
+    id: m.id,
+    label: m.nama_marketer,
+    subLabel: m.telepon || m.email || '',
+  }));
+
+  const formattedCustomers = customerList.map(c => ({
+    id: c.id,
+    label: c.nama_customer,
+    subLabel: c.telepon || c.alamat || '',
+  }));
+
+  const formattedExpeditions = expeditionList.map(e => ({
+    id: e.id,
+    label: e.nama_ekspedisi,
+    subLabel: e.kode_ekspedisi || '',
+  }));
 
   return (
     <KeyboardAvoidingView
@@ -247,7 +325,7 @@ export default function OrderFormScreen({ navigation, route }: Props) {
 
         {/* CARD INFORMASI UMUM */}
         <View style={styles.sectionCard}>
-          <Text style={styles.sectionLabel}>Informasi Umum</Text>
+          <Text style={styles.sectionLabel}>Informasi Toko & Pihak Terkait</Text>
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Nama Gudang / Toko <Text style={styles.required}>*</Text></Text>
@@ -267,144 +345,103 @@ export default function OrderFormScreen({ navigation, route }: Props) {
             {errors.gudang && <Text style={styles.errorText}>{errors.gudang}</Text>}
           </View>
 
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Pilih Marketer</Text>
-            {isLoadingMetadata ? (
-              <View style={styles.pickerLoading}>
-                <ActivityIndicator size="small" color="#023c69" />
-                <Text style={styles.pickerLoadingText}>Memuat daftar marketer...</Text>
-              </View>
-            ) : (
-              <View style={[styles.pickerWrapper, errors.marketer ? styles.inputErrorBorder : null]}>
-                <Ionicons name="people-outline" size={20} color={errors.marketer ? "#D32F2F" : "#6A7B95"} style={[styles.inputIcon, { marginLeft: 16 }]} />
-                <Picker
-                  selectedValue={selectedMarketerId}
-                  onValueChange={(val) => handleMarketerSelect(val as string)}
-                  style={styles.picker}
-                  dropdownIconColor="#023c69"
-                >
-                  <Picker.Item label="Input Manual / Lainnya..." value="manual" />
-                  {marketerList.map(m => (
-                    <Picker.Item key={m.id} label={m.nama_marketer} value={m.id.toString()} />
-                  ))}
-                </Picker>
-              </View>
-            )}
-          </View>
+          {/* MARKETER DROPDOWN */}
+          <DropdownPicker
+            label="Pilih Marketer"
+            iconName="people-outline"
+            items={formattedMarketers}
+            selectedValue={selectedMarketerId}
+            onSelect={handleMarketerSelect}
+            placeholder="Pilih Marketer..."
+            isLoading={isLoadingMetadata}
+            error={errors.marketer}
+            allowManualInput={true}
+            manualValue={marketerNama}
+            onManualValueChange={(text) => {
+              setMarketerNama(text);
+              if (errors.marketer) setErrors(prev => ({ ...prev, marketer: undefined }));
+            }}
+            manualPlaceholder="Nama Marketer Baru..."
+          />
 
-          {selectedMarketerId === 'manual' && (
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Nama Marketer / Pelanggan Baru</Text>
-              <View style={[styles.inputWrapper, errors.marketer ? styles.inputErrorBorder : null]}>
-                <Ionicons name="person-outline" size={20} color={errors.marketer ? "#D32F2F" : "#6A7B95"} style={styles.inputIcon} />
-                <TextInput
-                  style={styles.input}
-                  value={marketerNama}
-                  onChangeText={(text) => {
-                    setMarketerNama(text);
-                    if (errors.marketer) setErrors(prev => ({ ...prev, marketer: undefined }));
-                  }}
-                  placeholder="Misal: Budi Santoso"
-                  placeholderTextColor="#999"
-                />
-              </View>
-              {errors.marketer && <Text style={styles.errorText}>{errors.marketer}</Text>}
-            </View>
-          )}
+          {/* CUSTOMER DROPDOWN */}
+          <DropdownPicker
+            label="Pilih Customer"
+            iconName="person-outline"
+            items={formattedCustomers}
+            selectedValue={selectedCustomerId}
+            onSelect={handleCustomerSelect}
+            placeholder="Pilih Customer..."
+            isLoading={isLoadingMetadata}
+            error={errors.customer}
+            allowManualInput={true}
+            manualValue={customerNama}
+            onManualValueChange={(text) => {
+              setCustomerNama(text);
+              if (errors.customer) setErrors(prev => ({ ...prev, customer: undefined }));
+            }}
+            manualPlaceholder="Nama Customer Baru..."
+          />
         </View>
 
         {/* CARD DETAIL PRODUK */}
         <View style={styles.sectionCard}>
           <Text style={styles.sectionLabel}>Detail Produk & Pengiriman</Text>
 
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Pilih Master Produk <Text style={styles.required}>*</Text></Text>
-            {isLoadingMetadata ? (
-              <View style={styles.pickerLoading}>
-                <ActivityIndicator size="small" color="#023c69" />
-                <Text style={styles.pickerLoadingText}>Memuat master produk...</Text>
-              </View>
-            ) : (
-              <View style={[styles.pickerWrapper, errors.product ? styles.inputErrorBorder : null]}>
-                <Ionicons name="cube-outline" size={20} color={errors.product ? "#D32F2F" : "#6A7B95"} style={[styles.inputIcon, { marginLeft: 16 }]} />
-                <Picker
-                  selectedValue={selectedProductId}
-                  onValueChange={(val) => handleProductSelect(val as number)}
-                  style={styles.picker}
-                  dropdownIconColor="#023c69"
-                >
-                  <Picker.Item label="Pilih dari Master Produk..." value={null} color="#999" />
-                  {productList.map(prod => (
-                    <Picker.Item key={prod.id} label={`${prod.nama_produk} (Rp ${prod.harga_dasar.toLocaleString('id-ID')})`} value={prod.id} />
-                  ))}
-                </Picker>
-              </View>
-            )}
-            {errors.product && <Text style={styles.errorText}>{errors.product}</Text>}
-          </View>
+          {/* PRODUCT DROPDOWN */}
+          <DropdownPicker
+            label="Pilih Master Produk"
+            required={true}
+            iconName="cube-outline"
+            items={formattedProducts}
+            selectedValue={selectedProductId}
+            onSelect={handleProductSelect}
+            placeholder="Pilih dari Master Produk..."
+            isLoading={isLoadingMetadata}
+            error={errors.product}
+            allowManualInput={false}
+          />
 
           {previewFoto && (
             <View style={styles.previewContainer}>
               <Image source={{ uri: previewFoto }} style={styles.previewImage} />
               <View style={styles.previewTextContainer}>
                 <Text style={styles.previewName}>{produkNama}</Text>
-                <Text style={styles.previewPrice}>Harga Modal: Rp {basePriceNum.toLocaleString('id-ID')}</Text>
+                <Text style={styles.previewPrice}>Harga Produk: Rp {basePriceNum.toLocaleString('id-ID')}</Text>
               </View>
             </View>
           )}
 
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Pilih Ekspedisi</Text>
-            {isLoadingMetadata ? (
-              <View style={styles.pickerLoading}>
-                <ActivityIndicator size="small" color="#023c69" />
-                <Text style={styles.pickerLoadingText}>Memuat daftar ekspedisi...</Text>
-              </View>
-            ) : (
-              <View style={[styles.pickerWrapper, errors.ekspedisi ? styles.inputErrorBorder : null]}>
-                <Ionicons name="bus-outline" size={20} color={errors.ekspedisi ? "#D32F2F" : "#6A7B95"} style={[styles.inputIcon, { marginLeft: 16 }]} />
-                <Picker
-                  selectedValue={selectedExpeditionId}
-                  onValueChange={(val) => handleExpeditionSelect(val as string)}
-                  style={styles.picker}
-                  dropdownIconColor="#023c69"
-                >
-                  <Picker.Item label="Input Manual / Lainnya..." value="manual" />
-                  {expeditionList.map(e => (
-                    <Picker.Item key={e.id} label={e.nama_ekspedisi} value={e.id.toString()} />
-                  ))}
-                </Picker>
-              </View>
-            )}
-          </View>
-
-          {selectedExpeditionId === 'manual' && (
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Nama Ekspedisi Baru</Text>
-              <View style={[styles.inputWrapper, errors.ekspedisi ? styles.inputErrorBorder : null]}>
-                <Ionicons name="bus-outline" size={20} color={errors.ekspedisi ? "#D32F2F" : "#6A7B95"} style={styles.inputIcon} />
-                <TextInput
-                  style={styles.input}
-                  value={ekspedisi}
-                  onChangeText={(text) => {
-                    setEkspedisi(text);
-                    if (errors.ekspedisi) setErrors(prev => ({ ...prev, ekspedisi: undefined }));
-                  }}
-                  placeholder="Misal: JNE REG"
-                  placeholderTextColor="#999"
-                />
-              </View>
-              {errors.ekspedisi && <Text style={styles.errorText}>{errors.ekspedisi}</Text>}
-            </View>
-          )}
+          {/* EXPEDITION DROPDOWN */}
+          <DropdownPicker
+            label="Pilih Ekspedisi"
+            iconName="bus-outline"
+            items={formattedExpeditions}
+            selectedValue={selectedExpeditionId}
+            onSelect={handleExpeditionSelect}
+            placeholder="Pilih Ekspedisi..."
+            isLoading={isLoadingMetadata}
+            error={errors.ekspedisi}
+            allowManualInput={true}
+            manualValue={ekspedisi}
+            onManualValueChange={(text) => {
+              setEkspedisi(text);
+              if (errors.ekspedisi) setErrors(prev => ({ ...prev, ekspedisi: undefined }));
+            }}
+            manualPlaceholder="Nama Ekspedisi Baru..."
+          />
 
           <View style={styles.row}>
+            {/* FEE MARKETER WITH HIGHLIGHTED COLOR */}
             <View style={[styles.inputGroup, styles.col]}>
-              <Text style={styles.label}>Fee Marketer</Text>
-              <View style={[styles.inputWrapper, errors.fee ? styles.inputErrorBorder : null]}>
-                <Text style={[styles.currencyPrefix, errors.fee ? styles.errorCurrency : null]}>Rp</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+                <Ionicons name="pricetag" size={14} color="#E65100" style={{ marginRight: 4 }} />
+                <Text style={[styles.label, { color: '#E65100', marginBottom: 0 }]}>Fee Marketer</Text>
+              </View>
+              <View style={[styles.inputWrapper, styles.feeInputWrapper, errors.fee ? styles.inputErrorBorder : null]}>
+                <Text style={[styles.currencyPrefix, { color: '#E65100' }]}>Rp</Text>
                 <TextInput
-                  style={[styles.input, { paddingLeft: 4 }]}
+                  style={[styles.input, { paddingLeft: 4, color: '#E65100', fontWeight: '700' }]}
                   value={feeMarketer}
                   onChangeText={(text) => {
                     setFeeMarketer(formatRupiah(text));
@@ -412,9 +449,10 @@ export default function OrderFormScreen({ navigation, route }: Props) {
                   }}
                   keyboardType="numeric"
                   placeholder="25.000"
-                  placeholderTextColor="#999"
+                  placeholderTextColor="#FFB74D"
                 />
               </View>
+              <Text style={styles.feeHintText}>*Mengurangi harga bersih produk</Text>
               {errors.fee && <Text style={styles.errorText}>{errors.fee}</Text>}
             </View>
 
@@ -441,14 +479,28 @@ export default function OrderFormScreen({ navigation, route }: Props) {
 
         {/* REAKTIF KALKULATOR CARD */}
         <View style={styles.totalCard}>
-          <View style={styles.totalLabelContainer}>
-            <Ionicons name="calculator" size={22} color="#1B5E20" />
-            <View style={styles.totalTextGroup}>
-              <Text style={styles.totalLabel}>Total Tagihan Customer</Text>
-              <Text style={styles.totalCalculation}>(Dasar + Fee + Ongkir)</Text>
-            </View>
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>Harga Produk</Text>
+            <Text style={styles.totalSubValue}>Rp {basePriceNum.toLocaleString('id-ID')}</Text>
           </View>
-          <Text style={styles.totalValue}>Rp {totalHarga.toLocaleString('id-ID')}</Text>
+          <View style={styles.totalRow}>
+            <Text style={[styles.totalLabel, { color: '#E65100' }]}>Fee Marketer (Dipotong)</Text>
+            <Text style={[styles.totalSubValue, { color: '#E65100' }]}>- Rp {feeMarketerNum.toLocaleString('id-ID')}</Text>
+          </View>
+          {ongkirNum > 0 && (
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>Ongkos Kirim</Text>
+              <Text style={styles.totalSubValue}>+ Rp {ongkirNum.toLocaleString('id-ID')}</Text>
+            </View>
+          )}
+          <View style={styles.totalDivider} />
+          <View style={styles.totalRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.totalMainLabel}>Penerimaan Bersih Seller</Text>
+              <Text style={styles.totalCalculation}>(Produk - Fee Marketer + Ongkir)</Text>
+            </View>
+            <Text style={styles.totalValue}>Rp {penerimaanBersihSeller.toLocaleString('id-ID')}</Text>
+          </View>
         </View>
 
         <TouchableOpacity
@@ -531,6 +583,18 @@ const styles = StyleSheet.create({
     borderRadius: 12, borderWidth: 1, borderColor: '#D2DBE7',
     paddingHorizontal: 16, height: 50,
   },
+  feeInputWrapper: {
+    backgroundColor: '#FFF3E0',
+    borderColor: '#FFB74D',
+    borderWidth: 1.5,
+  },
+  feeHintText: {
+    fontSize: 10,
+    color: '#E65100',
+    fontWeight: '600',
+    marginTop: 4,
+    marginLeft: 2,
+  },
   inputErrorBorder: {
     borderColor: '#D32F2F',
     backgroundColor: '#FFEBEE',
@@ -542,30 +606,6 @@ const styles = StyleSheet.create({
   errorText: { color: '#D32F2F', fontSize: 12, fontWeight: '600', marginTop: 6, marginLeft: 4 },
   row: { flexDirection: 'row', justifyContent: 'space-between' },
   col: { flex: 0.48, marginBottom: 0 },
-
-  // Picker
-  pickerWrapper: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8F9FC',
-    borderRadius: 12, borderWidth: 1, borderColor: '#D2DBE7',
-    height: 50, overflow: 'hidden'
-  },
-  picker: { flex: 1, height: 50, color: '#102A43' },
-  pickerLoading: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F8F9FC',
-    height: 50,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#D2DBE7',
-    paddingHorizontal: 16,
-  },
-  pickerLoadingText: {
-    color: '#6A7B95',
-    fontSize: 14,
-    fontWeight: '500',
-    marginLeft: 10,
-  },
 
   // Preview Card
   previewContainer: {
@@ -582,19 +622,23 @@ const styles = StyleSheet.create({
   totalCard: {
     backgroundColor: '#E8F5E9', marginHorizontal: 24, padding: 18,
     borderRadius: 16, borderWidth: 1, borderColor: '#C8E6C9',
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     shadowColor: '#1B5E20', shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.05, shadowRadius: 8, elevation: 2,
   },
-  totalLabelContainer: {
+  totalRow: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    flex: 1,
+    marginBottom: 6,
   },
-  totalTextGroup: {
-    marginLeft: 10,
+  totalLabel: { fontSize: 13, fontWeight: '600', color: '#2E7D32' },
+  totalSubValue: { fontSize: 13, fontWeight: '700', color: '#1B5E20' },
+  totalDivider: {
+    height: 1,
+    backgroundColor: '#A5D6A7',
+    marginVertical: 8,
   },
-  totalLabel: { fontSize: 14, fontWeight: '800', color: '#1B5E20' },
+  totalMainLabel: { fontSize: 14, fontWeight: '800', color: '#1B5E20' },
   totalCalculation: { fontSize: 11, color: '#2E7D32', marginTop: 2, fontWeight: '500' },
   totalValue: { fontSize: 20, fontWeight: '800', color: '#1B5E20', marginLeft: 10 },
 

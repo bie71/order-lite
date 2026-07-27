@@ -7,7 +7,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useIsFocused } from '@react-navigation/native';
-import { getProductsPaginated, deleteProduct } from '../database/queries/productQueries';
+import { getProductsPaginated, deleteProduct, deleteProductsBulk } from '../database/queries/productQueries';
 import PinchableImage from '../components/PinchableImage';
 
 type Props = {
@@ -21,6 +21,10 @@ export default function ProductsListScreen({ navigation }: Props) {
   const [searchQuery, setSearchQuery] = useState('');
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(true);
+
+  // Bulk Selection states
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
 
   // Loading & UX states
   const [isLoading, setIsLoading] = useState(false);
@@ -54,6 +58,8 @@ export default function ProductsListScreen({ navigation }: Props) {
     if (isFocused) {
       setIsLoading(true);
       setOffset(0);
+      setIsSelectionMode(false);
+      setSelectedIds([]);
       fetchProducts(searchQuery, 0, false).finally(() => setIsLoading(false));
     }
   }, [isFocused, searchQuery, fetchProducts]);
@@ -62,6 +68,8 @@ export default function ProductsListScreen({ navigation }: Props) {
   const handleRefresh = async () => {
     setIsRefreshing(true);
     setOffset(0);
+    setIsSelectionMode(false);
+    setSelectedIds([]);
     await fetchProducts(searchQuery, 0, false);
     setIsRefreshing(false);
   };
@@ -75,6 +83,69 @@ export default function ProductsListScreen({ navigation }: Props) {
     setOffset(nextOffset);
     await fetchProducts(searchQuery, nextOffset, true);
     setIsLoadingMore(false);
+  };
+
+  const toggleSelect = (id: number) => {
+    setSelectedIds(prev => {
+      if (prev.includes(id)) {
+        const next = prev.filter(item => item !== id);
+        if (next.length === 0) setIsSelectionMode(false);
+        return next;
+      } else {
+        return [...prev, id];
+      }
+    });
+  };
+
+  const handleItemLongPress = (id: number) => {
+    if (!isSelectionMode) {
+      setIsSelectionMode(true);
+      setSelectedIds([id]);
+    }
+  };
+
+  const handleItemPress = (item: any) => {
+    if (isSelectionMode) {
+      toggleSelect(item.id);
+    } else {
+      setSelectedProduct(item);
+    }
+  };
+
+  const selectAll = () => {
+    if (selectedIds.length === products.length) {
+      setSelectedIds([]);
+      setIsSelectionMode(false);
+    } else {
+      setSelectedIds(products.map(p => p.id));
+    }
+  };
+
+  const handleBulkDelete = () => {
+    if (selectedIds.length === 0) return;
+    Alert.alert(
+      "Konfirmasi Hapus Beberapa",
+      `Apakah Anda yakin ingin menghapus ${selectedIds.length} produk terpilih?\nTindakan ini tidak dapat dibatalkan.`,
+      [
+        { text: "Batal", style: "cancel" },
+        {
+          text: "Hapus",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteProductsBulk(selectedIds);
+              setIsSelectionMode(false);
+              setSelectedIds([]);
+              Alert.alert("Sukses", "Produk terpilih berhasil dihapus.");
+              handleRefresh();
+            } catch (err: any) {
+              console.error(err);
+              Alert.alert("Error", `Gagal menghapus produk: ${err.message || err}`);
+            }
+          }
+        }
+      ]
+    );
   };
 
   const handleDelete = (id: number, nama: string) => {
@@ -106,28 +177,49 @@ export default function ProductsListScreen({ navigation }: Props) {
     <View style={styles.container}>
       {/* SEARCH BAR HEADER */}
       <View style={styles.header}>
-        <View style={styles.headerTitleRow}>
-          <Ionicons name="cube" size={26} color="#FFF" style={styles.headerIcon} />
-          <Text style={styles.headerTitle}>Master Produk</Text>
-        </View>
-        <Text style={styles.headerSubtitle}>Kelola dan cari master produk Anda</Text>
-
-        <View style={styles.searchWrapper}>
-          <Ionicons name="search-outline" size={18} color="#D2DBE7" style={styles.searchIcon} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Cari nama produk..."
-            placeholderTextColor="#BAC6D5"
-            value={searchQuery}
-            onChangeText={(text) => setSearchQuery(text)}
-            clearButtonMode="while-editing"
-          />
-          {searchQuery ? (
-            <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearBtn}>
-              <Ionicons name="close-circle" size={18} color="#BAC6D5" />
+        {isSelectionMode ? (
+          <View style={styles.selectionHeaderRow}>
+            <TouchableOpacity onPress={() => { setIsSelectionMode(false); setSelectedIds([]); }} style={styles.headerIconBtn}>
+              <Ionicons name="close" size={24} color="#FFF" />
             </TouchableOpacity>
-          ) : null}
-        </View>
+            <Text style={styles.selectionHeaderTitle}>{selectedIds.length} Terpilih</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <TouchableOpacity onPress={selectAll} style={styles.headerTextBtn}>
+                <Text style={styles.headerTextBtnText}>
+                  {selectedIds.length === products.length ? "Batal Semua" : "Pilih Semua"}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleBulkDelete} style={[styles.headerIconBtn, { marginLeft: 12 }]}>
+                <Ionicons name="trash" size={22} color="#FF6B6B" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : (
+          <>
+            <View style={styles.headerTitleRow}>
+              <Ionicons name="cube" size={26} color="#FFF" style={styles.headerIcon} />
+              <Text style={styles.headerTitle}>Master Produk</Text>
+            </View>
+            <Text style={styles.headerSubtitle}>Tekan lama pada item untuk memilih banyak</Text>
+
+            <View style={styles.searchWrapper}>
+              <Ionicons name="search-outline" size={18} color="#D2DBE7" style={styles.searchIcon} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Cari nama produk..."
+                placeholderTextColor="#BAC6D5"
+                value={searchQuery}
+                onChangeText={(text) => setSearchQuery(text)}
+                clearButtonMode="while-editing"
+              />
+              {searchQuery ? (
+                <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearBtn}>
+                  <Ionicons name="close-circle" size={18} color="#BAC6D5" />
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          </>
+        )}
       </View>
 
       {/* PRODUCTS LIST */}
@@ -145,28 +237,42 @@ export default function ProductsListScreen({ navigation }: Props) {
           onEndReachedThreshold={0.2}
           refreshing={isRefreshing}
           onRefresh={handleRefresh}
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              style={styles.card}
-              activeOpacity={0.7}
-              onPress={() => setSelectedProduct(item)}
-            >
-              <View style={styles.productImageContainer}>
-                {item.foto_path ? (
-                  <Image source={{ uri: item.foto_path }} style={styles.productImage} />
-                ) : (
-                  <View style={styles.productPlaceholder}>
-                    <Ionicons name="image-outline" size={24} color="#8899A6" />
+          renderItem={({ item }) => {
+            const isSelected = selectedIds.includes(item.id);
+            return (
+              <TouchableOpacity
+                style={[styles.card, isSelected && styles.selectedCard]}
+                activeOpacity={0.7}
+                onPress={() => handleItemPress(item)}
+                onLongPress={() => handleItemLongPress(item.id)}
+              >
+                {isSelectionMode && (
+                  <View style={styles.checkboxWrapper}>
+                    <Ionicons
+                      name={isSelected ? "checkbox" : "square-outline"}
+                      size={24}
+                      color={isSelected ? "#023c69" : "#BAC6D5"}
+                    />
                   </View>
                 )}
-              </View>
-              <View style={styles.info}>
-                <Text style={styles.name} numberOfLines={2}>{item.nama_produk}</Text>
-                <Text style={styles.price}>Rp {item.harga_dasar.toLocaleString('id-ID')}</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color="#BAC6D5" />
-            </TouchableOpacity>
-          )}
+
+                <View style={styles.productImageContainer}>
+                  {item.foto_path ? (
+                    <Image source={{ uri: item.foto_path }} style={styles.productImage} />
+                  ) : (
+                    <View style={styles.productPlaceholder}>
+                      <Ionicons name="image-outline" size={24} color="#8899A6" />
+                    </View>
+                  )}
+                </View>
+                <View style={styles.info}>
+                  <Text style={styles.name} numberOfLines={2}>{item.nama_produk}</Text>
+                  <Text style={styles.price}>Rp {item.harga_dasar.toLocaleString('id-ID')}</Text>
+                </View>
+                {!isSelectionMode && <Ionicons name="chevron-forward" size={18} color="#BAC6D5" />}
+              </TouchableOpacity>
+            );
+          }}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Ionicons name="cube-outline" size={60} color="#BAC6D5" />
@@ -381,6 +487,35 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 100,
   },
+  selectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 4,
+  },
+  selectionHeaderTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#FFF',
+    flex: 1,
+    marginLeft: 12,
+  },
+  headerIconBtn: {
+    padding: 6,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+  },
+  headerTextBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  headerTextBtnText: {
+    color: '#FFF',
+    fontSize: 13,
+    fontWeight: '700',
+  },
   card: {
     backgroundColor: '#FFF',
     padding: 12,
@@ -395,6 +530,15 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.02,
     shadowRadius: 8,
     elevation: 2,
+  },
+  selectedCard: {
+    borderColor: '#023c69',
+    borderWidth: 2,
+    backgroundColor: '#F0F4F8',
+  },
+  checkboxWrapper: {
+    marginRight: 12,
+    justifyContent: 'center',
   },
   productImageContainer: {
     width: 60,

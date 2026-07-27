@@ -6,7 +6,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useIsFocused } from '@react-navigation/native';
-import { deleteOrder, getOrdersPaginated } from '../database/queries/orderQueries';
+import { deleteOrder, deleteOrdersBulk, getOrdersPaginated } from '../database/queries/orderQueries';
 import ViewShot, { captureRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
 import PinchableImage from '../components/PinchableImage';
@@ -22,6 +22,10 @@ export default function OrdersListScreen({ navigation }: Props) {
   const [searchQuery, setSearchQuery] = useState('');
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(true);
+
+  // Bulk selection state
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
 
   // UX states
   const [isLoading, setIsLoading] = useState(false);
@@ -52,6 +56,8 @@ export default function OrdersListScreen({ navigation }: Props) {
     if (isFocused) {
       setIsLoading(true);
       setOffset(0);
+      setIsSelectionMode(false);
+      setSelectedIds([]);
       fetchOrders(searchQuery, 0, false).finally(() => setIsLoading(false));
     }
   }, [isFocused, searchQuery, fetchOrders]);
@@ -59,6 +65,8 @@ export default function OrdersListScreen({ navigation }: Props) {
   const handleRefresh = async () => {
     setIsRefreshing(true);
     setOffset(0);
+    setIsSelectionMode(false);
+    setSelectedIds([]);
     await fetchOrders(searchQuery, 0, false);
     setIsRefreshing(false);
   };
@@ -70,6 +78,69 @@ export default function OrdersListScreen({ navigation }: Props) {
     setOffset(nextOffset);
     await fetchOrders(searchQuery, nextOffset, true);
     setIsLoadingMore(false);
+  };
+
+  const toggleSelect = (id: number) => {
+    setSelectedIds(prev => {
+      if (prev.includes(id)) {
+        const next = prev.filter(item => item !== id);
+        if (next.length === 0) setIsSelectionMode(false);
+        return next;
+      } else {
+        return [...prev, id];
+      }
+    });
+  };
+
+  const handleItemLongPress = (id: number) => {
+    if (!isSelectionMode) {
+      setIsSelectionMode(true);
+      setSelectedIds([id]);
+    }
+  };
+
+  const handleItemPress = (item: any) => {
+    if (isSelectionMode) {
+      toggleSelect(item.id);
+    } else {
+      setSelectedOrder(item);
+    }
+  };
+
+  const selectAll = () => {
+    if (selectedIds.length === orders.length) {
+      setSelectedIds([]);
+      setIsSelectionMode(false);
+    } else {
+      setSelectedIds(orders.map(o => o.id));
+    }
+  };
+
+  const handleBulkDelete = () => {
+    if (selectedIds.length === 0) return;
+    Alert.alert(
+      "Konfirmasi Hapus Beberapa",
+      `Apakah Anda yakin ingin menghapus ${selectedIds.length} pesanan terpilih?\nTindakan ini tidak dapat dibatalkan.`,
+      [
+        { text: "Batal", style: "cancel" },
+        {
+          text: "Hapus",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteOrdersBulk(selectedIds);
+              setIsSelectionMode(false);
+              setSelectedIds([]);
+              Alert.alert("Sukses", "Pesanan terpilih berhasil dihapus.");
+              handleRefresh();
+            } catch (err: any) {
+              console.error(err);
+              Alert.alert("Error", `Gagal menghapus pesanan: ${err.message || err}`);
+            }
+          }
+        }
+      ]
+    );
   };
 
   const handleExportPNG = async () => {
@@ -119,28 +190,49 @@ export default function OrdersListScreen({ navigation }: Props) {
     <View style={styles.container}>
       {/* HEADER SECTION */}
       <View style={styles.header}>
-        <View style={styles.headerTitleRow}>
-          <Ionicons name="receipt" size={26} color="#FFF" style={styles.headerIcon} />
-          <Text style={styles.headerTitle}>Manajemen Pesanan</Text>
-        </View>
-        <Text style={styles.headerSubtitle}>Pantau dan catat seluruh pesanan masuk</Text>
-
-        <View style={styles.searchWrapper}>
-          <Ionicons name="search-outline" size={18} color="#D2DBE7" style={styles.searchIcon} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Cari produk, toko, atau marketer..."
-            placeholderTextColor="#BAC6D5"
-            value={searchQuery}
-            onChangeText={(text) => setSearchQuery(text)}
-            clearButtonMode="while-editing"
-          />
-          {searchQuery ? (
-            <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearBtn}>
-              <Ionicons name="close-circle" size={18} color="#BAC6D5" />
+        {isSelectionMode ? (
+          <View style={styles.selectionHeaderRow}>
+            <TouchableOpacity onPress={() => { setIsSelectionMode(false); setSelectedIds([]); }} style={styles.headerIconBtn}>
+              <Ionicons name="close" size={24} color="#FFF" />
             </TouchableOpacity>
-          ) : null}
-        </View>
+            <Text style={styles.selectionHeaderTitle}>{selectedIds.length} Terpilih</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <TouchableOpacity onPress={selectAll} style={styles.headerTextBtn}>
+                <Text style={styles.headerTextBtnText}>
+                  {selectedIds.length === orders.length ? "Batal Semua" : "Pilih Semua"}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleBulkDelete} style={[styles.headerIconBtn, { marginLeft: 12 }]}>
+                <Ionicons name="trash" size={22} color="#FF6B6B" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : (
+          <>
+            <View style={styles.headerTitleRow}>
+              <Ionicons name="receipt" size={26} color="#FFF" style={styles.headerIcon} />
+              <Text style={styles.headerTitle}>Manajemen Pesanan</Text>
+            </View>
+            <Text style={styles.headerSubtitle}>Tekan lama pada item untuk memilih banyak</Text>
+
+            <View style={styles.searchWrapper}>
+              <Ionicons name="search-outline" size={18} color="#D2DBE7" style={styles.searchIcon} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Cari produk, toko, atau marketer..."
+                placeholderTextColor="#BAC6D5"
+                value={searchQuery}
+                onChangeText={(text) => setSearchQuery(text)}
+                clearButtonMode="while-editing"
+              />
+              {searchQuery ? (
+                <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearBtn}>
+                  <Ionicons name="close-circle" size={18} color="#BAC6D5" />
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          </>
+        )}
       </View>
 
       {/* LIST SECTION */}
@@ -157,64 +249,96 @@ export default function OrdersListScreen({ navigation }: Props) {
           refreshing={isRefreshing}
           onRefresh={handleRefresh}
           renderItem={({ item }) => {
-            const totalTagihan = item.harga_produk + item.fee_marketer + (item.ongkir || 0);
+            const isSelected = selectedIds.includes(item.id);
+            const penerimaanBersih = item.harga_produk - item.fee_marketer + (item.ongkir || 0);
             return (
               <TouchableOpacity
-                style={styles.card}
+                style={[styles.card, isSelected && styles.selectedCard]}
                 activeOpacity={0.75}
-                onPress={() => setSelectedOrder(item)}
+                onPress={() => handleItemPress(item)}
+                onLongPress={() => handleItemLongPress(item.id)}
               >
-                {/* Warehouse & Date Header */}
-                <View style={styles.cardHeader}>
-                  <View style={styles.warehouseGroup}>
-                    <Ionicons name="storefront" size={16} color="#023c69" />
-                    <Text style={styles.warehouseName} numberOfLines={1}>{item.gudang_nama}</Text>
+                {/* Checkbox for Selection Mode */}
+                {isSelectionMode && (
+                  <View style={styles.checkboxWrapper}>
+                    <Ionicons
+                      name={isSelected ? "checkbox" : "square-outline"}
+                      size={24}
+                      color={isSelected ? "#023c69" : "#BAC6D5"}
+                    />
                   </View>
-                  <Text style={styles.orderDate}>
-                    {item.created_at ? new Date(item.created_at).toLocaleDateString('id-ID', {
-                      day: '2-digit',
-                      month: 'short',
-                      year: '2-digit'
-                    }) : ''}
-                  </Text>
-                </View>
+                )}
 
-                {/* Customer Info */}
-                <View style={styles.customerRow}>
-                  <Text style={styles.customerLabel}>Customer/Marketer:</Text>
-                  <Text style={styles.customerName}>{item.marketer_cust_nama}</Text>
-                </View>
-
-                <View style={styles.divider} />
-
-                {/* Product Detail Group */}
-                <View style={styles.productRow}>
-                  <View style={styles.productImageWrapper}>
-                    {item.produk_foto_path ? (
-                      <Image source={{ uri: item.produk_foto_path }} style={styles.productImage} />
-                    ) : (
-                      <View style={styles.productPlaceholder}>
-                        <Ionicons name="cube-outline" size={20} color="#BAC6D5" />
-                      </View>
-                    )}
-                  </View>
-                  <View style={styles.productInfo}>
-                    <Text style={styles.productName} numberOfLines={1}>{item.produk_nama}</Text>
-                    <Text style={styles.priceBreakdown}>
-                      Modal: Rp {item.harga_produk.toLocaleString('id-ID')} | Fee: Rp {item.fee_marketer.toLocaleString('id-ID')} {item.ongkir > 0 ? `| Ongkir: Rp ${item.ongkir.toLocaleString('id-ID')}` : ''}
+                <View style={{ flex: 1 }}>
+                  {/* Warehouse & Date Header */}
+                  <View style={styles.cardHeader}>
+                    <View style={styles.warehouseGroup}>
+                      <Ionicons name="storefront" size={16} color="#023c69" />
+                      <Text style={styles.warehouseName} numberOfLines={1}>{item.gudang_nama}</Text>
+                    </View>
+                    <Text style={styles.orderDate}>
+                      {item.created_at ? new Date(item.created_at).toLocaleDateString('id-ID', {
+                        day: '2-digit',
+                        month: 'short',
+                        year: '2-digit'
+                      }) : ''}
                     </Text>
                   </View>
-                </View>
 
-                {/* Bottom Row: Expedition & Total */}
-                <View style={styles.cardFooter}>
-                  <View style={styles.expeditionBadge}>
-                    <Ionicons name="bus-outline" size={13} color="#486581" style={{ marginRight: 4 }} />
-                    <Text style={styles.expeditionText}>{item.ekspedisi_pengirim}</Text>
+                  {/* Customer & Marketer Info with Icons */}
+                  <View style={styles.personContainer}>
+                    {item.marketer_nama || item.marketer_cust_nama ? (
+                      <View style={styles.personRowLine}>
+                        <Ionicons name="people" size={15} color="#023c69" style={{ marginRight: 6 }} />
+                        <Text style={styles.personRole}>Marketer:</Text>
+                        <Text style={styles.personName} numberOfLines={1}>
+                          {item.marketer_nama || item.marketer_cust_nama}
+                        </Text>
+                      </View>
+                    ) : null}
+
+                    {item.customer_nama ? (
+                      <View style={styles.personRowLine}>
+                        <Ionicons name="person" size={15} color="#038E5A" style={{ marginRight: 6 }} />
+                        <Text style={[styles.personRole, { color: '#038E5A' }]}>Customer:</Text>
+                        <Text style={styles.personName} numberOfLines={1}>
+                          {item.customer_nama}
+                        </Text>
+                      </View>
+                    ) : null}
                   </View>
-                  <View style={styles.totalGroup}>
-                    <Text style={styles.totalLabel}>Total Tagihan</Text>
-                    <Text style={styles.totalValue}>Rp {totalTagihan.toLocaleString('id-ID')}</Text>
+
+                  <View style={styles.divider} />
+
+                  {/* Product Detail Group */}
+                  <View style={styles.productRow}>
+                    <View style={styles.productImageWrapper}>
+                      {item.produk_foto_path ? (
+                        <Image source={{ uri: item.produk_foto_path }} style={styles.productImage} />
+                      ) : (
+                        <View style={styles.productPlaceholder}>
+                          <Ionicons name="cube-outline" size={20} color="#BAC6D5" />
+                        </View>
+                      )}
+                    </View>
+                    <View style={styles.productInfo}>
+                      <Text style={styles.productName} numberOfLines={1}>{item.produk_nama}</Text>
+                      <Text style={styles.priceBreakdown}>
+                        Harga: Rp {item.harga_produk.toLocaleString('id-ID')} | <Text style={{ color: '#E65100' }}>Fee: -Rp {item.fee_marketer.toLocaleString('id-ID')}</Text> {item.ongkir > 0 ? `| Ongkir: Rp ${item.ongkir.toLocaleString('id-ID')}` : ''}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Bottom Row: Expedition & Total */}
+                  <View style={styles.cardFooter}>
+                    <View style={styles.expeditionBadge}>
+                      <Ionicons name="bus-outline" size={13} color="#486581" style={{ marginRight: 4 }} />
+                      <Text style={styles.expeditionText}>{item.ekspedisi_pengirim}</Text>
+                    </View>
+                    <View style={styles.totalGroup}>
+                      <Text style={styles.totalLabel}>Penerimaan Bersih</Text>
+                      <Text style={styles.totalValue}>Rp {penerimaanBersih.toLocaleString('id-ID')}</Text>
+                    </View>
                   </View>
                 </View>
               </TouchableOpacity>
@@ -293,8 +417,13 @@ export default function OrdersListScreen({ navigation }: Props) {
                     </View>
 
                     <View style={styles.detailRow}>
-                      <Text style={styles.detailLabel}>Customer / Marketer</Text>
-                      <Text style={styles.detailValue}>{selectedOrder.marketer_cust_nama}</Text>
+                      <Text style={styles.detailLabel}>Marketer</Text>
+                      <Text style={styles.detailValue}>{selectedOrder.marketer_nama || selectedOrder.marketer_cust_nama || '-'}</Text>
+                    </View>
+
+                    <View style={styles.detailRow}>
+                      <Text style={styles.detailLabel}>Customer</Text>
+                      <Text style={styles.detailValue}>{selectedOrder.customer_nama || '-'}</Text>
                     </View>
 
                     <View style={styles.detailRow}>
@@ -339,14 +468,14 @@ export default function OrdersListScreen({ navigation }: Props) {
 
                   {/* Calculation Summary */}
                   <View style={[styles.modalSection, { backgroundColor: '#F0F9F4', borderColor: '#D0F0DB', borderWidth: 1 }]}>
-                    <Text style={[styles.modalSectionLabel, { color: '#1B5E20' }]}>Rincian Tagihan</Text>
+                    <Text style={[styles.modalSectionLabel, { color: '#1B5E20' }]}>Rincian Tagihan Seller</Text>
                     <View style={styles.calcRow}>
                       <Text style={styles.calcLabel}>Harga Dasar Produk</Text>
                       <Text style={styles.calcValue}>Rp {selectedOrder.harga_produk.toLocaleString('id-ID')}</Text>
                     </View>
                     <View style={styles.calcRow}>
-                      <Text style={styles.calcLabel}>Fee Marketer</Text>
-                      <Text style={styles.calcValue}>+ Rp {selectedOrder.fee_marketer.toLocaleString('id-ID')}</Text>
+                      <Text style={[styles.calcLabel, { color: '#E65100' }]}>Fee Marketer (Dipotong)</Text>
+                      <Text style={[styles.calcValue, { color: '#E65100' }]}>- Rp {selectedOrder.fee_marketer.toLocaleString('id-ID')}</Text>
                     </View>
                     {selectedOrder.ongkir > 0 && (
                       <View style={styles.calcRow}>
@@ -356,9 +485,9 @@ export default function OrdersListScreen({ navigation }: Props) {
                     )}
                     <View style={styles.calcDivider} />
                     <View style={styles.calcRow}>
-                      <Text style={[styles.calcLabel, { fontWeight: '800', color: '#1B5E20' }]}>Total Tagihan</Text>
+                      <Text style={[styles.calcLabel, { fontWeight: '800', color: '#1B5E20' }]}>Penerimaan Bersih Seller</Text>
                       <Text style={[styles.calcValue, { fontWeight: '800', fontSize: 18, color: '#1B5E20' }]}>
-                        Rp {(selectedOrder.harga_produk + selectedOrder.fee_marketer + (selectedOrder.ongkir || 0)).toLocaleString('id-ID')}
+                        Rp {(selectedOrder.harga_produk - selectedOrder.fee_marketer + (selectedOrder.ongkir || 0)).toLocaleString('id-ID')}
                       </Text>
                     </View>
                   </View>
@@ -502,7 +631,38 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 100,
   },
+  selectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 4,
+  },
+  selectionHeaderTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#FFF',
+    flex: 1,
+    marginLeft: 12,
+  },
+  headerIconBtn: {
+    padding: 6,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+  },
+  headerTextBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  headerTextBtnText: {
+    color: '#FFF',
+    fontSize: 13,
+    fontWeight: '700',
+  },
   card: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#FFF',
     borderRadius: 16,
     padding: 16,
@@ -514,6 +674,15 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.02,
     shadowRadius: 8,
     elevation: 3,
+  },
+  selectedCard: {
+    borderColor: '#023c69',
+    borderWidth: 2,
+    backgroundColor: '#F0F4F8',
+  },
+  checkboxWrapper: {
+    marginRight: 12,
+    justifyContent: 'center',
   },
   cardHeader: {
     flexDirection: 'row',
@@ -538,20 +707,25 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#8899A6',
   },
-  customerRow: {
+  personContainer: {
+    marginBottom: 10,
+    gap: 4,
+  },
+  personRowLine: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10,
   },
-  customerLabel: {
-    fontSize: 13,
-    color: '#6A7B95',
-    marginRight: 6,
-  },
-  customerName: {
+  personRole: {
     fontSize: 13,
     fontWeight: '700',
+    color: '#023c69',
+    marginRight: 4,
+  },
+  personName: {
+    fontSize: 13,
+    fontWeight: '600',
     color: '#102A43',
+    flex: 1,
   },
   divider: {
     height: 1,

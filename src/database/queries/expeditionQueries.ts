@@ -27,6 +27,13 @@ export const deleteExpedition = async (id: number): Promise<void> => {
   await db.runAsync('DELETE FROM expeditions WHERE id = ?', [id]);
 };
 
+export const deleteExpeditionsBulk = async (ids: number[]): Promise<void> => {
+  if (ids.length === 0) return;
+  const db = await getDatabase();
+  const placeholders = ids.map(() => '?').join(',');
+  await db.runAsync(`DELETE FROM expeditions WHERE id IN (${placeholders})`, ids);
+};
+
 export const getExpeditions = async () => {
   const db = await getDatabase();
   const allRows = await db.getAllAsync('SELECT * FROM expeditions ORDER BY nama_ekspedisi ASC');

@@ -6,7 +6,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useIsFocused } from '@react-navigation/native';
-import { getMarketersPaginated, deleteMarketer } from '../database/queries/marketerQueries';
+import { getMarketersPaginated, deleteMarketer, deleteMarketersBulk } from '../database/queries/marketerQueries';
 
 type Props = {
   navigation: NativeStackNavigationProp<any>;
@@ -20,6 +20,10 @@ export default function MarketersListScreen({ navigation }: Props) {
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   
+  // Selection Mode states
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+
   // UX states
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -46,6 +50,8 @@ export default function MarketersListScreen({ navigation }: Props) {
     if (isFocused) {
       setIsLoading(true);
       setOffset(0);
+      setIsSelectionMode(false);
+      setSelectedIds([]);
       fetchMarketers(searchQuery, 0, false).finally(() => setIsLoading(false));
     }
   }, [isFocused, searchQuery, fetchMarketers]);
@@ -53,6 +59,8 @@ export default function MarketersListScreen({ navigation }: Props) {
   const handleRefresh = async () => {
     setIsRefreshing(true);
     setOffset(0);
+    setIsSelectionMode(false);
+    setSelectedIds([]);
     await fetchMarketers(searchQuery, 0, false);
     setIsRefreshing(false);
   };
@@ -64,6 +72,69 @@ export default function MarketersListScreen({ navigation }: Props) {
     setOffset(nextOffset);
     await fetchMarketers(searchQuery, nextOffset, true);
     setIsLoadingMore(false);
+  };
+
+  const toggleSelect = (id: number) => {
+    setSelectedIds(prev => {
+      if (prev.includes(id)) {
+        const next = prev.filter(item => item !== id);
+        if (next.length === 0) setIsSelectionMode(false);
+        return next;
+      } else {
+        return [...prev, id];
+      }
+    });
+  };
+
+  const handleItemLongPress = (id: number) => {
+    if (!isSelectionMode) {
+      setIsSelectionMode(true);
+      setSelectedIds([id]);
+    }
+  };
+
+  const handleItemPress = (item: any) => {
+    if (isSelectionMode) {
+      toggleSelect(item.id);
+    } else {
+      setSelectedMarketer(item);
+    }
+  };
+
+  const selectAll = () => {
+    if (selectedIds.length === marketers.length) {
+      setSelectedIds([]);
+      setIsSelectionMode(false);
+    } else {
+      setSelectedIds(marketers.map(m => m.id));
+    }
+  };
+
+  const handleBulkDelete = () => {
+    if (selectedIds.length === 0) return;
+    Alert.alert(
+      "Konfirmasi Hapus Beberapa",
+      `Apakah Anda yakin ingin menghapus ${selectedIds.length} marketer terpilih?\nTindakan ini tidak dapat dibatalkan.`,
+      [
+        { text: "Batal", style: "cancel" },
+        {
+          text: "Hapus",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteMarketersBulk(selectedIds);
+              setIsSelectionMode(false);
+              setSelectedIds([]);
+              Alert.alert("Sukses", "Marketer terpilih berhasil dihapus.");
+              handleRefresh();
+            } catch (err: any) {
+              console.error(err);
+              Alert.alert("Error", `Gagal menghapus marketer: ${err.message || err}`);
+            }
+          }
+        }
+      ]
+    );
   };
 
   const handleDeleteMarketer = (id: number, name: string) => {
@@ -95,31 +166,52 @@ export default function MarketersListScreen({ navigation }: Props) {
     <View style={styles.container}>
       {/* HEADER SECTION */}
       <View style={styles.header}>
-        <View style={styles.headerTitleRow}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <Ionicons name="arrow-back" size={24} color="#FFF" />
-          </TouchableOpacity>
-          <Ionicons name="people" size={26} color="#FFF" style={styles.headerIcon} />
-          <Text style={styles.headerTitle}>Daftar Marketer</Text>
-        </View>
-        <Text style={styles.headerSubtitle}>Kelola data dan kontak marketer Anda</Text>
-
-        <View style={styles.searchWrapper}>
-          <Ionicons name="search-outline" size={18} color="#D2DBE7" style={styles.searchIcon} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Cari nama, email, atau telepon..."
-            placeholderTextColor="#BAC6D5"
-            value={searchQuery}
-            onChangeText={(text) => setSearchQuery(text)}
-            clearButtonMode="while-editing"
-          />
-          {searchQuery ? (
-            <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearBtn}>
-              <Ionicons name="close-circle" size={18} color="#BAC6D5" />
+        {isSelectionMode ? (
+          <View style={styles.selectionHeaderRow}>
+            <TouchableOpacity onPress={() => { setIsSelectionMode(false); setSelectedIds([]); }} style={styles.headerIconBtn}>
+              <Ionicons name="close" size={24} color="#FFF" />
             </TouchableOpacity>
-          ) : null}
-        </View>
+            <Text style={styles.selectionHeaderTitle}>{selectedIds.length} Terpilih</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <TouchableOpacity onPress={selectAll} style={styles.headerTextBtn}>
+                <Text style={styles.headerTextBtnText}>
+                  {selectedIds.length === marketers.length ? "Batal Semua" : "Pilih Semua"}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleBulkDelete} style={[styles.headerIconBtn, { marginLeft: 12 }]}>
+                <Ionicons name="trash" size={22} color="#FF6B6B" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : (
+          <>
+            <View style={styles.headerTitleRow}>
+              <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+                <Ionicons name="arrow-back" size={24} color="#FFF" />
+              </TouchableOpacity>
+              <Ionicons name="people" size={26} color="#FFF" style={styles.headerIcon} />
+              <Text style={styles.headerTitle}>Daftar Marketer</Text>
+            </View>
+            <Text style={styles.headerSubtitle}>Tekan lama pada item untuk memilih banyak</Text>
+
+            <View style={styles.searchWrapper}>
+              <Ionicons name="search-outline" size={18} color="#D2DBE7" style={styles.searchIcon} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Cari nama, email, atau telepon..."
+                placeholderTextColor="#BAC6D5"
+                value={searchQuery}
+                onChangeText={(text) => setSearchQuery(text)}
+                clearButtonMode="while-editing"
+              />
+              {searchQuery ? (
+                <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearBtn}>
+                  <Ionicons name="close-circle" size={18} color="#BAC6D5" />
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          </>
+        )}
       </View>
 
       {/* LIST SECTION */}
@@ -143,23 +235,36 @@ export default function MarketersListScreen({ navigation }: Props) {
             </View>
           ) : null}
           renderItem={({ item }) => {
+            const isSelected = selectedIds.includes(item.id);
             return (
               <TouchableOpacity 
-                style={styles.card}
+                style={[styles.card, isSelected && styles.selectedCard]}
                 activeOpacity={0.75}
-                onPress={() => setSelectedMarketer(item)}
+                onPress={() => handleItemPress(item)}
+                onLongPress={() => handleItemLongPress(item.id)}
               >
-                <View style={styles.cardHeader}>
-                  <View style={styles.avatarCircle}>
-                    <Text style={styles.avatarText}>{item.nama_marketer.substring(0, 2).toUpperCase()}</Text>
+                {isSelectionMode && (
+                  <View style={styles.checkboxWrapper}>
+                    <Ionicons
+                      name={isSelected ? "checkbox" : "square-outline"}
+                      size={24}
+                      color={isSelected ? "#023c69" : "#BAC6D5"}
+                    />
                   </View>
-                  <View style={styles.marketerInfo}>
-                    <Text style={styles.marketerName} numberOfLines={1}>{item.nama_marketer}</Text>
-                    <Text style={styles.marketerEmail} numberOfLines={1}>
-                      {item.email || 'Email tidak tersedia'}
-                    </Text>
+                )}
+
+                <View style={{ flex: 1 }}>
+                  <View style={styles.cardHeader}>
+                    <View style={styles.avatarCircle}>
+                      <Text style={styles.avatarText}>{item.nama_marketer.substring(0, 2).toUpperCase()}</Text>
+                    </View>
+                    <View style={styles.marketerInfo}>
+                      <Text style={styles.marketerName} numberOfLines={1}>{item.nama_marketer}</Text>
+                      <Text style={styles.marketerEmail} numberOfLines={1}>
+                        {item.email || 'Email tidak tersedia'}
+                      </Text>
+                    </View>
                   </View>
-                  <Ionicons name="chevron-forward" size={18} color="#BAC6D5" />
                 </View>
               </TouchableOpacity>
             );
@@ -346,7 +451,38 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 100,
   },
+  selectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 4,
+  },
+  selectionHeaderTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#FFF',
+    flex: 1,
+    marginLeft: 12,
+  },
+  headerIconBtn: {
+    padding: 6,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+  },
+  headerTextBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  headerTextBtnText: {
+    color: '#FFF',
+    fontSize: 13,
+    fontWeight: '700',
+  },
   card: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#FFF',
     borderRadius: 16,
     padding: 16,
@@ -358,6 +494,15 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.02,
     shadowRadius: 8,
     elevation: 2,
+  },
+  selectedCard: {
+    borderColor: '#023c69',
+    borderWidth: 2,
+    backgroundColor: '#F0F4F8',
+  },
+  checkboxWrapper: {
+    marginRight: 12,
+    justifyContent: 'center',
   },
   cardHeader: {
     flexDirection: 'row',
