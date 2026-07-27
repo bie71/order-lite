@@ -1,0 +1,35 @@
+# expo
+.expo/*
+*.spec
+
+# dependencies
+node_modules/
+
+# builds
+android/
+ios/
+bin/
+build/
+
+# SQLite databases
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+
+# local env files
+.env
+.env-local
+.env.local
+.env.*.local
+
+# logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+logs/
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
