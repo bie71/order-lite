@@ -62,6 +62,36 @@ export const initDatabase = async () => {
     }
 
     await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS order_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        order_id INTEGER NOT NULL,
+        produk_id INTEGER,
+        produk_nama TEXT NOT NULL,
+        produk_foto_path TEXT,
+        harga_produk REAL NOT NULL,
+        jumlah INTEGER NOT NULL DEFAULT 1,
+        subtotal REAL NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (order_id) REFERENCES orders (id) ON DELETE CASCADE,
+        FOREIGN KEY (produk_id) REFERENCES products (id) ON DELETE SET NULL
+      );
+    `);
+
+    // Migrate existing orders with single product to order_items if order_items is empty but orders has records
+    try {
+      const itemCount: any = await db.getFirstAsync('SELECT COUNT(*) as count FROM order_items;');
+      if (itemCount && itemCount.count === 0) {
+        await db.execAsync(`
+          INSERT INTO order_items (order_id, produk_id, produk_nama, produk_foto_path, harga_produk, jumlah, subtotal, created_at)
+          SELECT id, produk_id, produk_nama, produk_foto_path, harga_produk, 1, harga_produk, created_at
+          FROM orders WHERE produk_nama IS NOT NULL AND produk_nama != '';
+        `);
+      }
+    } catch (e) {
+      console.warn("Migration order_items skipped or failed:", e);
+    }
+
+    await db.execAsync(`
       CREATE TABLE IF NOT EXISTS marketers (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         nama_marketer TEXT NOT NULL,
@@ -98,6 +128,11 @@ export const initDatabase = async () => {
     }
     try {
       await db.execAsync('ALTER TABLE orders ADD COLUMN customer_nama TEXT;');
+    } catch (e) {
+      // Column might already exist
+    }
+    try {
+      await db.execAsync('ALTER TABLE orders ADD COLUMN catatan TEXT;');
     } catch (e) {
       // Column might already exist
     }

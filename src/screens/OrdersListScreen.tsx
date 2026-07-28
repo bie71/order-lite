@@ -306,6 +306,16 @@ export default function OrdersListScreen({ navigation }: Props) {
                         </Text>
                       </View>
                     ) : null}
+
+                    {item.catatan ? (
+                      <View style={[styles.personRowLine, { marginTop: 2 }]}>
+                        <Ionicons name="document-text" size={14} color="#E65100" style={{ marginRight: 6 }} />
+                        <Text style={[styles.personRole, { color: '#E65100' }]}>Catatan:</Text>
+                        <Text style={[styles.personName, { color: '#D84315', fontStyle: 'italic' }]} numberOfLines={1}>
+                          {item.catatan}
+                        </Text>
+                      </View>
+                    ) : null}
                   </View>
 
                   <View style={styles.divider} />
@@ -313,7 +323,9 @@ export default function OrdersListScreen({ navigation }: Props) {
                   {/* Product Detail Group */}
                   <View style={styles.productRow}>
                     <View style={styles.productImageWrapper}>
-                      {item.produk_foto_path ? (
+                      {item.items && item.items[0]?.produk_foto_path ? (
+                        <Image source={{ uri: item.items[0].produk_foto_path }} style={styles.productImage} />
+                      ) : item.produk_foto_path ? (
                         <Image source={{ uri: item.produk_foto_path }} style={styles.productImage} />
                       ) : (
                         <View style={styles.productPlaceholder}>
@@ -323,6 +335,11 @@ export default function OrdersListScreen({ navigation }: Props) {
                     </View>
                     <View style={styles.productInfo}>
                       <Text style={styles.productName} numberOfLines={1}>{item.produk_nama}</Text>
+                      {item.items && item.items.length > 1 && (
+                        <Text style={{ fontSize: 11, color: '#023c69', fontWeight: '700', marginBottom: 2 }}>
+                          {item.items.length} Macam Produk ({item.items.reduce((sum: number, it: any) => sum + (it.jumlah || 1), 0)} Total Item)
+                        </Text>
+                      )}
                       <Text style={styles.priceBreakdown}>
                         Harga: Rp {item.harga_produk.toLocaleString('id-ID')} | <Text style={{ color: '#E65100' }}>Fee: -Rp {item.fee_marketer.toLocaleString('id-ID')}</Text> {item.ongkir > 0 ? `| Ongkir: Rp ${item.ongkir.toLocaleString('id-ID')}` : ''}
                       </Text>
@@ -406,7 +423,7 @@ export default function OrdersListScreen({ navigation }: Props) {
               <ScrollView contentContainerStyle={styles.modalScrollBody} showsVerticalScrollIndicator={false}>
 
                 {/* Wrap receipt details inside ViewShot for image capture */}
-                <ViewShot ref={viewShotRef} options={{ format: 'png', quality: 0.9 }} style={{ backgroundColor: '#FFF', padding: 8, borderRadius: 16 }}>
+                <ViewShot ref={viewShotRef} options={{ format: 'png', quality: 0.9 }} style={{ backgroundColor: '#FFF', padding: 12, borderRadius: 16 }}>
                   {/* Gudang & Marketer Info Card */}
                   <View style={styles.modalSection}>
                     <Text style={styles.modalSectionLabel}>Informasi Umum</Text>
@@ -442,35 +459,73 @@ export default function OrdersListScreen({ navigation }: Props) {
                         </Text>
                       </View>
                     )}
+
+                    {selectedOrder.catatan && (
+                      <View style={[styles.detailRow, { flexDirection: 'column', alignItems: 'flex-start', marginTop: 6, paddingTop: 8, borderTopWidth: 1, borderTopColor: '#F0F4F8' }]}>
+                        <Text style={[styles.detailLabel, { color: '#E65100', fontWeight: '700', marginBottom: 2 }]}>Catatan Pesanan:</Text>
+                        <Text style={[styles.detailValue, { color: '#D84315', fontWeight: '500', fontStyle: 'italic', textAlign: 'left' }]}>
+                          {selectedOrder.catatan}
+                        </Text>
+                      </View>
+                    )}
                   </View>
 
-                  {/* Product Detail Card */}
+                  {/* Product Detail Card (Multi-Product List) */}
                   <View style={styles.modalSection}>
-                    <Text style={styles.modalSectionLabel}>Produk Terpesan</Text>
-                    <View style={styles.modalProductRow}>
-                      <View style={styles.modalProductImageWrapper}>
-                        {selectedOrder.produk_foto_path ? (
-                          <TouchableOpacity onPress={() => { setZoomScale(1); setZoomImage(selectedOrder.produk_foto_path); }} activeOpacity={0.9} style={{ width: '100%', height: '100%' }}>
-                            <Image source={{ uri: selectedOrder.produk_foto_path }} style={styles.modalProductImage} />
-                          </TouchableOpacity>
-                        ) : (
-                          <View style={styles.modalProductPlaceholder}>
-                            <Ionicons name="cube-outline" size={24} color="#BAC6D5" />
+                    <Text style={styles.modalSectionLabel}>
+                      Daftar Produk Terpesan ({selectedOrder.items ? selectedOrder.items.length : 1})
+                    </Text>
+                    {selectedOrder.items && selectedOrder.items.length > 0 ? (
+                      selectedOrder.items.map((prod: any, idx: number) => (
+                        <View key={idx} style={[styles.modalProductRow, idx > 0 && { marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#F0F4F8' }]}>
+                          <View style={styles.modalProductImageWrapper}>
+                            {prod.produk_foto_path ? (
+                              <TouchableOpacity onPress={() => { setZoomScale(1); setZoomImage(prod.produk_foto_path); }} activeOpacity={0.9} style={{ width: '100%', height: '100%' }}>
+                                <Image source={{ uri: prod.produk_foto_path }} style={styles.modalProductImage} />
+                              </TouchableOpacity>
+                            ) : (
+                              <View style={styles.modalProductPlaceholder}>
+                                <Ionicons name="cube-outline" size={24} color="#BAC6D5" />
+                              </View>
+                            )}
                           </View>
-                        )}
+                          <View style={styles.modalProductInfo}>
+                            <Text style={styles.modalProductName}>{prod.produk_nama}</Text>
+                            <Text style={styles.modalProductPrice}>
+                              @ Rp {prod.harga_produk.toLocaleString('id-ID')} x {prod.jumlah || 1}
+                            </Text>
+                            <Text style={{ fontSize: 12, fontWeight: '700', color: '#038E5A', marginTop: 2 }}>
+                              Subtotal: Rp {(prod.subtotal || (prod.harga_produk * (prod.jumlah || 1))).toLocaleString('id-ID')}
+                            </Text>
+                          </View>
+                        </View>
+                      ))
+                    ) : (
+                      <View style={styles.modalProductRow}>
+                        <View style={styles.modalProductImageWrapper}>
+                          {selectedOrder.produk_foto_path ? (
+                            <TouchableOpacity onPress={() => { setZoomScale(1); setZoomImage(selectedOrder.produk_foto_path); }} activeOpacity={0.9} style={{ width: '100%', height: '100%' }}>
+                              <Image source={{ uri: selectedOrder.produk_foto_path }} style={styles.modalProductImage} />
+                            </TouchableOpacity>
+                          ) : (
+                            <View style={styles.modalProductPlaceholder}>
+                              <Ionicons name="cube-outline" size={24} color="#BAC6D5" />
+                            </View>
+                          )}
+                        </View>
+                        <View style={styles.modalProductInfo}>
+                          <Text style={styles.modalProductName}>{selectedOrder.produk_nama}</Text>
+                          <Text style={styles.modalProductPrice}>Harga: Rp {selectedOrder.harga_produk.toLocaleString('id-ID')}</Text>
+                        </View>
                       </View>
-                      <View style={styles.modalProductInfo}>
-                        <Text style={styles.modalProductName}>{selectedOrder.produk_nama}</Text>
-                        <Text style={styles.modalProductPrice}>Harga: Rp {selectedOrder.harga_produk.toLocaleString('id-ID')}</Text>
-                      </View>
-                    </View>
+                    )}
                   </View>
 
                   {/* Calculation Summary */}
                   <View style={[styles.modalSection, { backgroundColor: '#F0F9F4', borderColor: '#D0F0DB', borderWidth: 1 }]}>
                     <Text style={[styles.modalSectionLabel, { color: '#1B5E20' }]}>Rincian Tagihan Seller</Text>
                     <View style={styles.calcRow}>
-                      <Text style={styles.calcLabel}>Harga Dasar Produk</Text>
+                      <Text style={styles.calcLabel}>Total Harga Produk</Text>
                       <Text style={styles.calcValue}>Rp {selectedOrder.harga_produk.toLocaleString('id-ID')}</Text>
                     </View>
                     <View style={styles.calcRow}>

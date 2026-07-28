@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  View, Text, StyleSheet, TouchableOpacity, 
+import {
+  View, Text, StyleSheet, TouchableOpacity,
   ActivityIndicator, Alert, ScrollView, Platform
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { 
-  configureGoogleSignIn, signInWithGoogle, signOutGoogle, 
-  backupToGDrive, restoreFromGDrive 
+import {
+  configureGoogleSignIn, signInWithGoogle, signOutGoogle,
+  backupToGDrive, restoreFromGDrive
 } from '../utils/gdriveBackup';
 
 export default function SettingsScreen({ navigation }: { navigation: any }) {
@@ -60,12 +60,12 @@ export default function SettingsScreen({ navigation }: { navigation: any }) {
     }
 
     Alert.alert(
-      "Konfirmasi Backup", 
+      "Konfirmasi Backup",
       "File database SQLite pesanan dan master data akan ditimpa ke Google Drive Anda. Lanjutkan?",
       [
         { text: "Batal", style: "cancel" },
-        { 
-          text: "Ya, Backup Sekarang", 
+        {
+          text: "Ya, Backup Sekarang",
           onPress: async () => {
             setIsLoading(true);
             try {
@@ -91,19 +91,19 @@ export default function SettingsScreen({ navigation }: { navigation: any }) {
     }
 
     Alert.alert(
-      "Peringatan Restore", 
+      "Peringatan Restore",
       "Proses ini akan menimpa seluruh database lokal saat ini dengan database dari Google Drive. Lanjutkan?",
       [
         { text: "Batal", style: "cancel" },
-        { 
-          text: "Ya, Pulihkan Data", 
+        {
+          text: "Ya, Pulihkan Data",
           style: "destructive",
           onPress: async () => {
             setIsLoading(true);
             try {
               await restoreFromGDrive(accessToken);
               Alert.alert(
-                "Sukses Pulihkan", 
+                "Sukses Pulihkan",
                 "Data database berhasil dipulihkan dari Google Drive. Silakan muat ulang aplikasi Anda agar database baru aktif.",
                 [{ text: "OK" }]
               );
@@ -160,27 +160,27 @@ export default function SettingsScreen({ navigation }: { navigation: any }) {
         <Text style={styles.cardTitle}>Manajemen Data Cloud</Text>
         <Text style={styles.lastBackupText}>Terakhir dicadangkan: {lastBackup}</Text>
 
-        <TouchableOpacity 
-          style={[styles.actionBtn, styles.backupBtn]} 
-          onPress={handleBackup} 
+        <TouchableOpacity
+          style={[styles.actionBtn, styles.backupBtn]}
+          onPress={handleBackup}
           disabled={isLoading || !isSignedIn}
         >
           <Ionicons name="cloud-upload-outline" size={20} color="#FFF" />
           <Text style={styles.actionBtnText}>Backup Data Sekarang</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity 
-          style={[styles.actionBtn, styles.restoreBtn]} 
-          onPress={handleRestore} 
+        <TouchableOpacity
+          style={[styles.actionBtn, styles.restoreBtn]}
+          onPress={handleRestore}
           disabled={isLoading || !isSignedIn}
         >
           <Ionicons name="cloud-download-outline" size={20} color="#FFF" />
           <Text style={styles.actionBtnText}>Pulihkan Data (Restore)</Text>
         </TouchableOpacity>
-        
+
         {!isSignedIn && (
           <View style={styles.overlay}>
-             <Text style={styles.overlayText}>Silakan login terlebih dahulu</Text>
+            <Text style={styles.overlayText}>Silakan login terlebih dahulu</Text>
           </View>
         )}
       </View>
@@ -195,31 +195,31 @@ export default function SettingsScreen({ navigation }: { navigation: any }) {
           Kelola entitas pendukung untuk pemesanan seperti daftar marketer eksternal dan kurir ekspedisi.
         </Text>
 
-        <TouchableOpacity 
-          style={[styles.actionBtn, { backgroundColor: '#023c69' }]} 
+        <TouchableOpacity
+          style={[styles.actionBtn, { backgroundColor: '#023c69' }]}
           onPress={() => navigation.navigate('MarketersList')}
         >
           <Ionicons name="people-outline" size={20} color="#FFF" />
           <Text style={styles.actionBtnText}>Kelola Marketer</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity 
-          style={[styles.actionBtn, { backgroundColor: '#023c69' }]} 
+        <TouchableOpacity
+          style={[styles.actionBtn, { backgroundColor: '#023c69' }]}
           onPress={() => navigation.navigate('CustomersList')}
         >
           <Ionicons name="person-outline" size={20} color="#FFF" />
           <Text style={styles.actionBtnText}>Kelola Customer</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity 
-          style={[styles.actionBtn, { backgroundColor: '#023c69', marginBottom: 0 }]} 
+        <TouchableOpacity
+          style={[styles.actionBtn, { backgroundColor: '#023c69', marginBottom: 0 }]}
           onPress={() => navigation.navigate('ExpeditionsList')}
         >
           <Ionicons name="bus-outline" size={20} color="#FFF" />
           <Text style={styles.actionBtnText}>Kelola Ekspedisi</Text>
         </TouchableOpacity>
       </View>
-      
+
       {/* Loading Overlay Global */}
       {isLoading && (
         <View style={styles.loadingOverlay}>
@@ -237,29 +237,30 @@ const styles = StyleSheet.create({
   header: { padding: 24, paddingTop: Platform.OS === 'ios' ? 24 : 40, paddingBottom: 22, backgroundColor: '#023c69', borderBottomLeftRadius: 24, borderBottomRightRadius: 24 },
   headerTitle: { fontSize: 20, fontWeight: 'bold', color: '#FFF' },
   headerSubtitle: { fontSize: 13, color: '#BAC6D5', marginTop: 4 },
-  
+
   card: {
     backgroundColor: '#FFF', marginHorizontal: 20, marginTop: 20,
     borderRadius: 16, padding: 20,
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05, shadowRadius: 8, elevation: 3,
-    overflow: 'hidden'
+    overflow: 'hidden',
+    marginBottom: 15
   },
   cardDisabled: { opacity: 0.7 },
   cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
   cardTitle: { fontSize: 18, fontWeight: '700', color: '#333', marginLeft: 10 },
   cardDescription: { fontSize: 14, color: '#666', lineHeight: 22, marginBottom: 16 },
-  
+
   loginBtn: { backgroundColor: '#4285F4', paddingVertical: 14, borderRadius: 10, alignItems: 'center' },
   loginBtnText: { color: '#FFF', fontSize: 16, fontWeight: '600' },
-  
+
   accountInfo: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 },
   accountEmail: { fontSize: 16, fontWeight: '600', color: '#333' },
   logoutBtn: { backgroundColor: '#FFEBEE', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8 },
   logoutText: { color: '#D32F2F', fontWeight: 'bold' },
 
   lastBackupText: { fontSize: 13, color: '#888', marginBottom: 20, marginTop: 4 },
-  
+
   actionBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, borderRadius: 10, marginBottom: 12 },
   actionBtnText: { color: '#FFF', fontSize: 16, fontWeight: '600', marginLeft: 8 },
   backupBtn: { backgroundColor: '#34A853' },
