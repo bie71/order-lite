@@ -50,17 +50,16 @@ export default function AddProductScreen({ navigation, route }: Props) {
 
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
-        allowsEditing: true,
-        aspect: [1, 1],
+        allowsEditing: false,
         quality: 1, // Kualitas asli sebelum dikompres
       });
 
       if (!result.canceled) {
-        // 1. Kompres dan Resize Gambar (Max 600px, kualitas 0.5 JPEG untuk hemat ukuran)
+        // 1. Kompres dan Resize Gambar tanpa crop (Max 800px, kualitas 0.75 JPEG)
         const compressedImage = await ImageManipulator.manipulateAsync(
           result.assets[0].uri,
-          [{ resize: { width: 600 } }],
-          { compress: 0.5, format: ImageManipulator.SaveFormat.JPEG }
+          [{ resize: { width: 800 } }],
+          { compress: 0.75, format: ImageManipulator.SaveFormat.JPEG }
         );
 
         // 2. Simpan gambar ke direktori permanen aplikasi (bukan sekadar cache sementara)
@@ -362,7 +361,7 @@ const styles = StyleSheet.create({
     height: '100%',
     position: 'relative',
   },
-  imagePreview: { width: '100%', height: '100%', resizeMode: 'cover' },
+  imagePreview: { width: '100%', height: '100%', resizeMode: 'contain', backgroundColor: '#F8FAFC' },
   imageOverlay: {
     position: 'absolute',
     bottom: 0,

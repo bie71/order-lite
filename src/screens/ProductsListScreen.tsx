@@ -384,6 +384,18 @@ export default function ProductsListScreen({ navigation }: Props) {
                       <Text style={styles.modalActionText}>Hapus</Text>
                     </TouchableOpacity>
                   </View>
+
+                  <TouchableOpacity
+                    style={[styles.modalActionBtn, { backgroundColor: '#0284C7', marginTop: 10, width: '100%' }]}
+                    onPress={() => {
+                      const prod = selectedProduct;
+                      setSelectedProduct(null);
+                      navigation.navigate('WebCatalogScreen');
+                    }}
+                  >
+                    <Ionicons name="globe-outline" size={18} color="#FFF" />
+                    <Text style={styles.modalActionText}>Kelola di Katalog Web</Text>
+                  </TouchableOpacity>
                 </View>
               </ScrollView>
             )}

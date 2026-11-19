@@ -4,10 +4,13 @@ import {
   ActivityIndicator, Alert, ScrollView, Platform
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useIsFocused } from '@react-navigation/native';
 import {
   configureGoogleSignIn, signInWithGoogle, signOutGoogle,
   backupToGDrive, restoreFromGDrive
 } from '../utils/gdriveBackup';
+import { getCatalogConfig, CatalogConfig } from '../database/queries/catalogQueries';
+import WebCatalogConfigModal from '../components/WebCatalogConfigModal';
 
 export default function SettingsScreen({ navigation }: { navigation: any }) {
   // State untuk melacak status Login Google dan proses Loading
@@ -17,10 +20,31 @@ export default function SettingsScreen({ navigation }: { navigation: any }) {
   const [isLoading, setIsLoading] = useState(false);
   const [lastBackup, setLastBackup] = useState('Belum pernah dicadangkan');
 
+  // State untuk Katalog Web
+  const [catalogConfig, setCatalogConfig] = useState<CatalogConfig | null>(null);
+  const [isCatalogModalVisible, setIsCatalogModalVisible] = useState(false);
+  const isFocused = useIsFocused();
+
   // Initialize Google SDK on component mount
   useEffect(() => {
     configureGoogleSignIn();
   }, []);
+
+  // Load Catalog Config when focused
+  useEffect(() => {
+    if (isFocused) {
+      loadCatalogConfig();
+    }
+  }, [isFocused]);
+
+  const loadCatalogConfig = async () => {
+    try {
+      const cfg = await getCatalogConfig();
+      setCatalogConfig(cfg);
+    } catch (e) {
+      console.warn("Gagal memuat config katalog:", e);
+    }
+  };
 
   const handleGoogleLogin = async () => {
     setIsLoading(true);
@@ -185,6 +209,51 @@ export default function SettingsScreen({ navigation }: { navigation: any }) {
         )}
       </View>
 
+      {/* CARD KONEKSI KATALOG WEB (SAHLA STORE) */}
+      <View style={styles.card}>
+        <View style={styles.cardHeader}>
+          <Ionicons name="globe-outline" size={24} color="#0284C7" />
+          <Text style={[styles.cardTitle, { color: '#0284C7' }]}>Katalog Web Online (Sahla Store)</Text>
+        </View>
+
+        <Text style={[styles.cardDescription, { marginBottom: 12 }]}>
+          Kelola produk, banner promo, dan publikasikan update katalog ke web online via GitHub & Vercel.
+        </Text>
+
+        <View style={styles.connectionStatusBox}>
+          <View
+            style={[
+              styles.connectionStatusDot,
+              { backgroundColor: catalogConfig?.github_token ? '#10B981' : '#94A3B8' }
+            ]}
+          />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.connectionStatusLabel}>Status Koneksi:</Text>
+            <Text style={styles.connectionStatusValue}>
+              {catalogConfig?.github_token
+                ? `Terhubung: ${catalogConfig.github_repo} (${catalogConfig.github_branch})`
+                : 'Belum Dikonfigurasi (Token PAT Kosong)'}
+            </Text>
+          </View>
+        </View>
+
+        <TouchableOpacity
+          style={[styles.actionBtn, { backgroundColor: '#0284C7' }]}
+          onPress={() => navigation.navigate('WebCatalogScreen')}
+        >
+          <Ionicons name="storefront-outline" size={20} color="#FFF" />
+          <Text style={styles.actionBtnText}>Kelola Katalog Web</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.actionBtn, { backgroundColor: '#F0F9FF', borderWidth: 1, borderColor: '#BAE6FD', marginBottom: 0 }]}
+          onPress={() => setIsCatalogModalVisible(true)}
+        >
+          <Ionicons name="key-outline" size={18} color="#0284C7" />
+          <Text style={[styles.actionBtnText, { color: '#0284C7' }]}>Pengaturan GitHub Token (PAT)</Text>
+        </TouchableOpacity>
+      </View>
+
       {/* CARD MASTER DATA */}
       <View style={styles.card}>
         <View style={styles.cardHeader}>
@@ -227,6 +296,13 @@ export default function SettingsScreen({ navigation }: { navigation: any }) {
           <Text style={styles.loadingText}>Mohon Tunggu...</Text>
         </View>
       )}
+
+      {/* Modal Pengaturan GitHub PAT */}
+      <WebCatalogConfigModal
+        visible={isCatalogModalVisible}
+        onClose={() => setIsCatalogModalVisible(false)}
+        onSaved={loadCatalogConfig}
+      />
 
     </ScrollView>
   );
@@ -280,5 +356,33 @@ const styles = StyleSheet.create({
     justifyContent: 'center', alignItems: 'center',
     zIndex: 999
   },
-  loadingText: { marginTop: 12, fontSize: 15, fontWeight: '700', color: '#023c69' }
+  loadingText: { marginTop: 12, fontSize: 15, fontWeight: '700', color: '#023c69' },
+
+  connectionStatusBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 14,
+  },
+  connectionStatusDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginRight: 10,
+  },
+  connectionStatusLabel: {
+    fontSize: 11,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+  connectionStatusValue: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#1E293B',
+    marginTop: 1,
+  },
 });

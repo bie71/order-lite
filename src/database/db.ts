@@ -137,6 +137,36 @@ export const initDatabase = async () => {
       // Column might already exist
     }
 
+    // Tabel Konfigurasi Web Katalog GitHub & Vercel
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS catalog_config (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        github_token TEXT,
+        github_repo TEXT DEFAULT 'bie71/sahla-store',
+        github_branch TEXT DEFAULT 'main',
+        catalog_url TEXT DEFAULT 'https://sahla-store.vercel.app',
+        last_sync DATETIME,
+        last_publish DATETIME
+      );
+    `);
+
+    // Inisialisasi baris konfigurasi default jika belum ada
+    await db.execAsync(`
+      INSERT OR IGNORE INTO catalog_config (id, github_repo, github_branch, catalog_url)
+      VALUES (1, 'bie71/sahla-store', 'main', 'https://sahla-store.vercel.app');
+    `);
+
+    // Tabel Cache Lokal Katalog (agar bisa edit offline dan mendeteksi perubahan)
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS catalog_cache (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        settings_json TEXT,
+        products_json TEXT,
+        sha TEXT,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
     console.log("Database OrderLite & Tabel berhasil diinisialisasi.");
   } catch (error) {
     console.error("Gagal menginisialisasi database:", error);

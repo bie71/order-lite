@@ -16,6 +16,8 @@ import AddExpeditionScreen from '../screens/AddExpeditionScreen';
 
 import CustomersListScreen from '../screens/CustomersListScreen';
 import AddCustomerScreen from '../screens/AddCustomerScreen';
+import WebCatalogScreen from '../screens/WebCatalogScreen';
+import WebProductEditScreen from '../screens/WebProductEditScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -34,6 +36,8 @@ function ProductsStack() {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="ProductsList" component={ProductsListScreen} />
       <Stack.Screen name="AddProduct" component={AddProductScreen} />
+      <Stack.Screen name="WebCatalogScreen" component={WebCatalogScreen} />
+      <Stack.Screen name="WebProductEditScreen" component={WebProductEditScreen} />
     </Stack.Navigator>
   );
 }
@@ -42,6 +46,8 @@ function SettingsStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="SettingsScreen" component={SettingsScreen} />
+      <Stack.Screen name="WebCatalogScreen" component={WebCatalogScreen} />
+      <Stack.Screen name="WebProductEditScreen" component={WebProductEditScreen} />
       <Stack.Screen name="MarketersList" component={MarketersListScreen} />
       <Stack.Screen name="AddMarketer" component={AddMarketerScreen} />
       <Stack.Screen name="CustomersList" component={CustomersListScreen} />
