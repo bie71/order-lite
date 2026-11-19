@@ -8,6 +8,123 @@ Selain itu, keamanan data dijamin melalui fitur integrasi sinkronisasi file data
 
 ---
 
+## 📑 Daftar Isi
+- [📱 Panduan Build Android (Release APK & AAB)](#-panduan-build-android-release-apk--aab) 👈 *(Build Release)*
+- [🌟 Fitur Utama & Pembaruan Terkini](#-fitur-utama--pembaruan-terkini)
+- [🛠 Teknologi yang Digunakan](#-teknologi-yang-digunakan)
+- [🏗 Struktur Direktori Utama](#-struktur-direktori-utama)
+- [🚀 Panduan Menjalankan Aplikasi (Development)](#-panduan-menjalankan-aplikasi-development)
+- [🌐 Panduan Menghubungkan Web Katalog (Sahla Store)](#-panduan-menghubungkan-web-katalog-sahla-store)
+- [☁️ Integrasi Google Drive (Backup & Restore)](#️-integrasi-google-drive-backup--restore)
+- [🔗 Catatan Penting tentang Modul Rust (rust-compressor)](#-catatan-penting-tentang-modul-rust-rust-compressor)
+
+---
+
+## 📱 Panduan Build Android (Release APK & AAB)
+
+Untuk mempermudah proses pembuatan aplikasi siap rilis, Anda dapat menggunakan script npm instan yang sudah dikonfigurasi di root proyek maupun menjalankan perintah Gradle secara langsung.
+
+### ⚡ Ringkasan Perintah Cepat (NPM Scripts)
+
+| Perintah | Deskripsi | Lokasi Output File |
+| :--- | :--- | :--- |
+| **`npm run build:apk`** | Build file **APK Release** (siap install langsung di HP/dibagikan ke tester) | `android/app/build/outputs/apk/release/app-release.apk` |
+| **`npm run build:bundle`** | Build file **AAB Release** (format bundle untuk upload ke Google Play Console) | `android/app/build/outputs/bundle/release/app-release.aab` |
+| **`npm run android:release`** | Build release sekaligus install dan jalankan langsung di HP/emulator via USB | Terpasang langsung di perangkat |
+| **`npm run clean:android`** | Membersihkan build cache Gradle jika terjadi error / stale cache | - |
+
+---
+
+### 1. Build APK Release (Untuk Distribusi Langsung / Sideload ke HP)
+
+Gunakan metode ini jika Anda ingin mendapatkan file APK mandiri (*standalone*) yang bisa dikirim lewat WhatsApp/Google Drive dan langsung di-install di perangkat Android.
+
+1. **Jalankan Perintah Build:**
+   ```bash
+   npm run build:apk
+   ```
+   *(Atau secara manual: `cd android && ./gradlew assembleRelease`)*
+
+2. **Lokasi File APK Hasil Build:**
+   ```text
+   android/app/build/outputs/apk/release/app-release.apk
+   ```
+
+3. **Install Langsung ke HP via ADB (Opsional):**
+   Jika HP Android terhubung ke laptop/PC dengan USB Debugging aktif:
+   ```bash
+   adb install -r android/app/build/outputs/apk/release/app-release.apk
+   ```
+
+---
+
+### 2. Build AAB Release (Untuk Google Play Store)
+
+Google Play Store mewajibkan format **Android App Bundle (.aab)** untuk aplikasi baru yang dirilis.
+
+1. **Jalankan Perintah Build Bundle:**
+   ```bash
+   npm run build:bundle
+   ```
+   *(Atau secara manual: `cd android && ./gradlew bundleRelease`)*
+
+2. **Lokasi File AAB Hasil Build:**
+   ```text
+   android/app/build/outputs/bundle/release/app-release.aab
+   ```
+   *File `.aab` inilah yang diunggah ke Google Play Console pada menu **Production / Internal Testing**.*
+
+---
+
+### 3. Mengatur Versi Aplikasi (Version & VersionCode)
+
+Saat ingin merilis versi baru, naikkan nomor versi di dua file berikut:
+- **`app.json`**:
+  ```json
+  "expo": {
+    "version": "2.2.0",
+    "android": {
+      "versionCode": 4
+    }
+  }
+  ```
+- **`package.json`**:
+  ```json
+  "version": "2.2.0"
+  ```
+> **Catatan Play Store:** `versionCode` wajib selalu bertambah (bilangan bulat/integer naik) pada setiap rilis pembaruan baru di Play Console.
+
+---
+
+### 4. Konfigurasi Signing & Keystore (Release Signing)
+
+Secara bawaan di `android/app/build.gradle`:
+- Build release menggunakan `signingConfig signingConfigs.debug`. Hal ini membuat file APK release yang dihasilkan sudah langsung ter-sign (tersertifikasi) dan dapat langsung dipasang di HP Android mana pun tanpa harus konfigurasi keystore manual.
+- **Untuk Rilis Produksi Google Play Store:**
+  1. Buat keystore produksi sendiri:
+     ```bash
+     keytool -genkeypair -v -storetype PKCS12 -keystore orderlite-release-key.keystore -alias orderlite-key -keyalg RSA -keysize 2048 -validity 10000
+     ```
+  2. Letakkan file `orderlite-release-key.keystore` di dalam folder `android/app/`.
+  3. Konfigurasi kredensial keystore di `android/gradle.properties` atau `android/app/build.gradle`.
+
+---
+
+### 5. Troubleshooting Build Android
+
+- **Gagal karena Cache Lama / Resource AAPT:**
+  Bersihkan cache build:
+  ```bash
+  npm run clean:android
+  ```
+- **Setelah Melakukan Perubahan Konfigurasi Native / Rust:**
+  Jalankan prebuild ulang:
+  ```bash
+  npx expo prebuild --clean
+  ```
+
+---
+
 ## 🌟 Fitur Utama & Pembaruan Terkini
 
 ### 1. 🌐 Integrasi Web Katalog Online (Sahla Store) via GitHub PAT
@@ -139,6 +256,12 @@ npx expo prebuild --clean
 npx expo start
 ```
 
+### 4. Menjalankan Langsung di Perangkat Android (Development Mode)
+```bash
+npm run android
+# atau: npx expo run:android
+```
+
 ---
 
 ## 🌐 Panduan Menghubungkan Web Katalog (Sahla Store)
@@ -191,39 +314,6 @@ export const configureGoogleSignIn = () => {
 
 ---
 
-## 📦 Perintah Build & Mode Eksekusi
-
-### 1. Mode Development (Pengembangan)
-* **Lokal (Android):**
-  ```bash
-  npx expo run:android
-  ```
-* **Lokal (iOS):**
-  ```bash
-  npx expo run:ios
-  ```
-
-### 2. Mode Production / Release (Produksi)
-
-#### A. Build APK Release Lokal via Gradle
-```bash
-cd android && ./gradlew assembleRelease
-```
-*Output file:* `android/app/build/outputs/apk/release/app-release.apk`
-
-#### B. Build AAB Release (Google Play Store)
-```bash
-cd android && ./gradlew bundleRelease
-```
-*Output file:* `android/app/build/outputs/bundle/release/app-release.aab`
-
-#### C. Build via Cloud (Expo EAS)
-```bash
-eas build --platform android --profile production
-```
-
----
-
 ## 🔗 Catatan Penting tentang Modul Rust (rust-compressor)
 
 Agar Expo Modules (C++) dapat membaca kode Rust secara sempurna, pastikan modul lokal terdaftar pada `package.json` utama:
@@ -233,5 +323,7 @@ Agar Expo Modules (C++) dapat membaca kode Rust secara sempurna, pastikan modul 
 }
 ```
 Saat Expo melakukan kompilasi, Native Bridge (JNI/C++) akan mencari fungsi FFI `compress_image` yang telah dibuat dengan atribut `#[no_mangle]` pada `lib.rs`.
+
+---
 
 **Selamat Mengembangkan OrderLite! 🎉**

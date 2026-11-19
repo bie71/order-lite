@@ -5,6 +5,10 @@
   "scripts": {
     "start": "expo start",
     "android": "expo run:android",
+    "android:release": "expo run:android --variant release",
+    "build:apk": "cd android && ./gradlew assembleRelease",
+    "build:bundle": "cd android && ./gradlew bundleRelease",
+    "clean:android": "cd android && ./gradlew clean",
     "ios": "expo run:ios",
     "web": "expo start --web"
   },
